@@ -3,10 +3,12 @@ package miningtask
 import(
     "testing"
     "fmt"
+    "blockchain/miner/blockmap"
 )
 
 func TestMining(t *testing.T) {
-    nonce, hash := computeNonceSecretHash(4)
-    fmt.Println(nonce,hash)
+    block := blockmap.Block{ PrevHash: "1234", Nonce:"1" , MinerId:"james"}
+    minedblock := computeBlock(block, 5)
+    fmt.Println(minedblock)
 }
 

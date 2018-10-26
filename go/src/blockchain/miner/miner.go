@@ -9,6 +9,7 @@ import (
     "blockchain/miner/minerlib"
 )
 
+
 type miner struct {
 }
 
