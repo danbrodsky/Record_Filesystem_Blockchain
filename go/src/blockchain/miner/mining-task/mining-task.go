@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"time"
 	"encoding/hex"
+	"blockchain/miner/blockmap"
 )
 
 
@@ -20,22 +21,25 @@ func randSeq(n int) string {
     return string(b)
 }
 
-func computeNonceSecretHash(numZeros int) (nonce string, hash string) {
+func computeBlock(block blockmap.Block, numZeros int) blockmap.Block{
 	zeros := ""
 	for i:= 0; i<numZeros; i++{
-		fmt.Println("adding 0")
 		zeros = zeros+"0"
 	}
         rand.Seed(time.Now().UnixNano())
 	for{
-		h := md5.New()
-		nonce = randSeq(20)
-	        h.Write([]byte(nonce))
-		hash = hex.EncodeToString(h.Sum(nil))
-		fmt.Println(hash)
-		if(nonce[len(nonce)-numZeros:len(nonce)] == zeros){
-			return nonce,hash
+		block.Nonce = randSeq(15)
+		hash := getHash(block)
+		if(hash[len(hash)-numZeros:len(hash)] == zeros){
+			fmt.Println(hash)
+			return block
 		}
 	}
+}
+
+func getHash(block blockmap.Block) string{
+     h := md5.New()
+     h.Write([]byte(fmt.Sprintf("%v", block)))
+     return hex.EncodeToString(h.Sum(nil))
 }
 

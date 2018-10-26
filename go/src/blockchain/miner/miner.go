@@ -11,11 +11,11 @@ import (
 	"os"
 )
 
+
 type M interface {
 	MakeKnown(addr string, reply *int) error
 	ReceiveOp(op string, reply *int) error
 	ReceiveBlock(block minerlib.Block, reply *int) error
-
 }
 
 type Miner struct {
