@@ -1,10 +1,10 @@
 package main
 
 import (
+	"blockchain/miner/blockmap"
 	"blockchain/miner/minerlib"
 	"encoding/gob"
 	"log"
-	"math/rand"
 	"net"
 	"net/http"
 	"net/rpc"
@@ -14,8 +14,9 @@ import (
 
 type M interface {
 	MakeKnown(addr string, reply *int) error
-	ReceiveOp(op string, reply *int) error
-	ReceiveBlock(block minerlib.Block, reply *int) error
+	ReceiveOp(operation Op, reply *int) error
+	ReceiveBlock(payload Payload, reply *int) error
+	GetPreviousBlock(prevHash string, block *blockmap.Block) error
 }
 
 type Miner struct {
@@ -33,24 +34,30 @@ type Miner struct {
 	IncomingMinersAddr string
 	OutgoingMinersIP string
 	IncomingClientsAddr string
+
+	Connections map[string]*rpc.Client
+	WaitingOps map[string]string
+	BlockMap blockmap.BlockMap
 }
 
-var (
-	minerConnections = make(map[string]*rpc.Client)
-	waitingOps = make(map[string]bool)
-	blocks = make(map[string]*minerlib.Block)
+type Op struct {
+	op string
+	// random string to make ops unique
+	id string
+}
 
-	currentLongest *minerlib.Block
-	genesisBlock *minerlib.Block
+type Payload struct {
+	returnAddr string
+	hash string
+	block blockmap.Block
+}
 
-)
 
-
-func (miner Miner) MakeKnown(addr string, reply *int) error {
-	if _, ok := minerConnections[addr]; !ok {
+func (miner *Miner) MakeKnown(addr string, reply *int) error {
+	if _, ok := miner.Connections[addr]; !ok {
 		client, err := rpc.DialHTTP("tcp", addr)
 		if err == nil {
-			minerConnections[addr] = client
+			miner.Connections[addr] = client
 		} else {
 			log.Println("dialing:", err)
 		}
@@ -58,12 +65,12 @@ func (miner Miner) MakeKnown(addr string, reply *int) error {
 	return nil
 }
 
-func (miner Miner) ReceiveOp(op string, reply *int) error {
-	if _, ok := waitingOps[op]; !ok && minerlib.ValidateOp() {
+func (miner *Miner) ReceiveOp(operation Op, reply *int) error {
+	if _, ok := miner.WaitingOps[operation.op + operation.id]; !ok && minerlib.ValidateOp() {
 		// op not received yet, store and flood it
-		waitingOps[op] = true
-		for _, conn := range minerConnections {
-			conn.Go("Miner.ReceiveOp", op, nil, nil)
+		miner.WaitingOps[operation.op + operation.id] = operation.op
+		for _, conn := range miner.Connections {
+			conn.Go("Miner.ReceiveOp", operation, nil, nil)
 		}
 
 		// TODO: Check timeout and maxOps and see if it's time to mine a new block
@@ -71,59 +78,45 @@ func (miner Miner) ReceiveOp(op string, reply *int) error {
 	return nil
 }
 
-func (miner Miner) ReceiveBlock(returnAddr string, hash string, block minerlib.Block, reply *int) error {
-	// TODO: Implement ValidateBlock
+func (miner *Miner) ReceiveBlock(payload Payload, reply *int) error {
 
-	// if miner is behind, get previous blocks until caught up
-	if _, ok := blocks[block.PrevHash]; !ok {
+	// if miner is behind, get previous BlockMap.Map until caught up
+	// TODO: move this portion to blockmap
+	// ================================================================================================================
+	if _, ok := miner.BlockMap.Map[payload.block.PrevHash]; !ok {
 
-		// add missing blocks to a temp store in case they're fake
-		missingBlocks := make(map[string]*minerlib.Block)
-		missingBlocks[hash] = &block
+		// add missing BlockMap.Map to a temp store in case they're fake
+		missingBlocks := make(map[string]blockmap.Block)
+		missingBlocks[payload.hash] = payload.block
 
 		for !ok {
-			var prevBlock *minerlib.Block
-			minerConnections[returnAddr].Call("Miner.SendPreviousBlock", block.PrevHash, &prevBlock)
-			missingBlocks[block.PrevHash] = prevBlock
-			block = *prevBlock
-			_, ok = blocks[block.PrevHash]
+			var prevBlock *blockmap.Block
+			miner.Connections[payload.returnAddr].Call("Miner.GetPreviousBlock", payload.block.PrevHash, &prevBlock)
+			missingBlocks[payload.block.PrevHash] = *prevBlock
+			// TODO: Validate the block here, if it fails then dump missing blocks and break
+			_, ok = miner.BlockMap.Map[prevBlock.PrevHash]
 		}
-
+		// TODO: Insert all the blocks in missingBlocks into the blockmap
 	}
+	// ================================================================================================================
 
 	// TODO: change to blockmap insert
-	if minerlib.ValidateBlock() {
-		addToTree(block, hash)
+	miner.BlockMap.Insert(payload.block)
 
 		// send the block to connected miners
-		for _, conn := range minerConnections {
-			conn.Go("Miner.ReceiveBlock", block, nil, nil)
-		}
+	for _, conn := range miner.Connections {
+		conn.Go("Miner.ReceiveBlock", payload, nil, nil)
 	}
-	return nil
-}
-
-func (miner Miner) SendPreviousBlock(hash string, block *minerlib.Block) error {
-
-	*block = *blocks[hash]
 
 	return nil
 }
 
-func addToTree(block minerlib.Block, hash string) {
-	blocks[hash] = &block
-	updateLongest(block)
-}
+func (miner *Miner) GetPreviousBlock(prevHash string, block *blockmap.Block) error {
 
-func updateLongest(block minerlib.Block) {
-	if block.Depth == currentLongest.Depth {
-		if rand.Intn(2) == 1 {
-			currentLongest = &block
-		}
+	if _, ok := miner.BlockMap.Map[prevHash]; ok {
+		*block = miner.BlockMap.Map[prevHash]
 	}
-	if block.Depth > currentLongest.Depth {
-		currentLongest = &block
-	}
+	return nil
 }
 
 func main() {
@@ -137,8 +130,12 @@ func main() {
 		e = decoder.Decode(miner)
 	} else { log.Fatal("file error:", e)}
 	file.Close()
+	
+	// create blockmap with the genesis block and associated hash
+	miner.BlockMap = blockmap.NewBlockMap(blockmap.Block{nil, nil, nil, nil, 0}, miner.GenesisBlockHash)
 
-	// TODO: add genesis block
+	miner.WaitingOps = make(map[string]string)
+	miner.Connections = make(map[string]*rpc.Client)
 
 	// Open RPC server for other miners
 	rpc.Register(miner)
@@ -155,9 +152,11 @@ func main() {
 		if err == nil {
 			// make this miner known to the other miner
 			client.Go("Miner.MakeKnown", addr, nil, nil)
-			minerConnections[addr] = client
+			miner.Connections[addr] = client
 
 		} else {log.Println("dialing:", err)}
 	}
+
+	// TODO: add a receiver for managing block mining and client operations
 }
 

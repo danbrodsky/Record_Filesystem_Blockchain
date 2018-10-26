@@ -4,6 +4,7 @@ import (
     "fmt"
     "crypto/md5"
     "encoding/hex"
+    "math/rand"
 )
 
 type BlockMap struct {
@@ -27,14 +28,12 @@ type Block struct{
     Depth int
 }
 
-func NewBlockMap(genesisBlock Block) (blockmap BlockMap) {
-	// TODO check if block is genesis
+func NewBlockMap(genesisBlock Block, genesisHash string) (blockmap BlockMap) {
     blockmap = BlockMap{}
-    genesisBlock.Depth =  0
     blockmap.TailBlock = genesisBlock
     blockmap.GenesisBlock = genesisBlock
     blockmap.Map = make(map[string]Block)
-    blockmap.Map[getHash(genesisBlock)] = genesisBlock
+    blockmap.Map[genesisHash] = genesisBlock
     return blockmap
 }
 
@@ -51,15 +50,25 @@ func getHash(block Block) string{
      return hex.EncodeToString(h.Sum(nil))
 }
 
+func (bm *BlockMap) updateLongest(block Block) {
+    if block.Depth == bm.TailBlock.Depth {
+        if rand.Intn(2) == 1 {
+            bm.TailBlock = block
+        }
+    }
+    if block.Depth > bm.TailBlock.Depth {
+        bm.TailBlock = block
+    }
+}
+
 func (bm *BlockMap) Insert(block Block) (err error){
 	// TODO verify block hash end of 0s
     if _, ok := bm.Map[block.PrevHash]; !ok {
-	block.Depth = bm.TailBlock.Depth + 1
-	fmt.Println("block to add:", bm.TailBlock)
+	    fmt.Println("block to add:", bm.TailBlock)
         bm.Map[getHash(block)] = block
-	bm.TailBlock = block
-	fmt.Println("tail:", bm.TailBlock)
-	return nil
+	    bm.updateLongest(block)
+	    fmt.Println("tail:", bm.TailBlock)
+	    return nil
     } else {
 	return PrevHashDoesNotExistError(block.PrevHash)
     }

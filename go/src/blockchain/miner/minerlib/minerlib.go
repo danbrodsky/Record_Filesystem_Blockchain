@@ -13,6 +13,15 @@ type Miner struct {
 
 }
 
+type Block struct {
+PrevHash string
+Ops []string
+Nonce string
+MinerId string
+Depth int
+}
+
+
 var (
     connection net.Conn
 )
@@ -27,4 +36,11 @@ func (miner Miner) CheckConnected()(string){
     return "true"
 }
 
+func ValidateBlock() bool {
+    return true
+}
+
+func ValidateOp() bool {
+    return true
+}
 
