@@ -107,7 +107,7 @@ func (bm *BlockMap) MineAndAddBlock(ops []string, minerId string, blockCh chan *
         bm.Insert(*minedBlock)
 	blockCh <-minedBlock
     } else{
-	blockCh <-nil
+	blockCh <-nil//most likely mining was stopped
     }
 }
 
