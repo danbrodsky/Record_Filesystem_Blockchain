@@ -38,6 +38,8 @@ type Miner struct {
 	Connections map[string]*rpc.Client
 	WaitingOps map[string]string
 	BlockMap blockmap.BlockMap
+
+	IncomingBlocks chan blockmap.Block
 }
 
 type Op struct {
@@ -136,6 +138,7 @@ func main() {
 
 	miner.WaitingOps = make(map[string]string)
 	miner.Connections = make(map[string]*rpc.Client)
+	miner.IncomingBlocks = make(chan blockmap.Block)
 
 	// Open RPC server for other miners
 	rpc.Register(miner)
@@ -158,5 +161,24 @@ func main() {
 	}
 
 	// TODO: add a receiver for managing block mining and client operations
+
+	// create a noop block and start mining for a nonce
+	completeBlock := make(chan *blockmap.Block)
+	miner.BlockMap.MineAndAddBlock(nil, miner.MinerID, completeBlock)
+	for true {
+		select {
+		// receive a newly mined block, flood it and start mining noop
+		case cb := <-completeBlock:
+			for _, conn := range miner.Connections {
+				conn.Go("Miner.ReceiveBlock", Payload{miner.IncomingMinersAddr, blockmap.getHash(*cb), *cb}, nil, nil)
+			}
+			miner.BlockMap.MineAndAddBlock(nil, miner.MinerID, completeBlock)
+		// receive a new order to mine a block, select whether this block waits or goes forward
+		case ib := <-miner.IncomingBlocks:
+			// TODO: Determine whether to mine a new block
+		}
+
+		// TODO: Client logic goes here
+	}
 }
 
