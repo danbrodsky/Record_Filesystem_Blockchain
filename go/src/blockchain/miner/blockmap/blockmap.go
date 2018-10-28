@@ -1,14 +1,14 @@
 package blockmap
 
 import (
-    "fmt"
     "crypto/md5"
     "encoding/hex"
+    "fmt"
     "math/rand"
 )
 
 type BlockMap struct {
-    tailBlock Block
+    TailBlock Block
     genesisBlock Block
     Map map[string]Block
 }
@@ -29,14 +29,14 @@ type Block struct{
 }
 
 
-func NewBlockMap(genesisBlock Block, genesisHash string) (blockmap BlockMap) {
+func NewBlockMap(genesisBlock Block) (blockmap BlockMap) {
     // TODO check if block is genesis
     blockmap = BlockMap{}
     genesisBlock.Depth =  0
-    blockmap.tailBlock = genesisBlock
+    blockmap.TailBlock = genesisBlock
     blockmap.genesisBlock = genesisBlock
     blockmap.Map = make(map[string]Block)
-    blockmap.Map[genesisHash] = genesisBlock
+    blockmap.Map[GetHash(genesisBlock)] = genesisBlock
     return blockmap
 }
 
@@ -54,20 +54,20 @@ func (e BlockNotValidError) Error() string {
 }
 
 // Gets the hash of the block
-func getHash(block Block) string{
+func GetHash(block Block) string{
      h := md5.New()
      h.Write([]byte(fmt.Sprintf("%v", block)))
      return hex.EncodeToString(h.Sum(nil))
 }
 
 func (bm *BlockMap) updateLongest(block Block) {
-    if block.Depth == bm.tailBlock.Depth {
+    if block.Depth == bm.TailBlock.Depth {
         if rand.Intn(2) == 1 {
-            bm.tailBlock = block
+            bm.TailBlock = block
         }
     }
-    if block.Depth > bm.tailBlock.Depth {
-        bm.tailBlock = block
+    if block.Depth > bm.TailBlock.Depth {
+        bm.TailBlock = block
     }
 }
 // Inserts a block in the block map
@@ -76,12 +76,12 @@ func (bm *BlockMap) updateLongest(block Block) {
 // also the hash of the block should end with some number of 0s
 func (bm *BlockMap) Insert(block Block) (err error){
     if(!BHashEndsWithZeros(block,4)){ // TODO set env variable
-	return BlockNotValidError(getHash(block))
+	return BlockNotValidError(GetHash(block))
     }
     if _, ok := bm.Map[block.PrevHash]; ok {
-        bm.Map[getHash(block)] = block
-	bm.tailBlock = block
-	fmt.Println("tail:", bm.tailBlock)
+        bm.Map[GetHash(block)] = block
+	bm.TailBlock = block
+	fmt.Println("tail:", bm.TailBlock)
 	return nil
     } else {
 	return PrevHashDoesNotExistError(block.PrevHash)
@@ -93,7 +93,7 @@ func (bm *BlockMap) GetMap() (map[string]Block){
 }
 
 func BHashEndsWithZeros(block Block, numZeros int) bool{
-    hash := getHash(block)
+    hash := GetHash(block)
     for i:= len(hash) - 1; i > len(hash)-1 -numZeros ; i--{
         if(hash[i] != '0'){
 	    return false
@@ -103,17 +103,17 @@ func BHashEndsWithZeros(block Block, numZeros int) bool{
 }
 
 func (bm *BlockMap) SetTailBlock(block Block){
-    bm.tailBlock = block
+    bm.TailBlock = block
 }
 
 // Mines a block and puts it in the block chain
 // ops is the operation 
 // minerId is the miner of the miner
 func (bm *BlockMap) MineAndAddBlock(ops []string, minerId string, blockCh chan *Block){
-    block := Block{ PrevHash: getHash(bm.tailBlock),
+    block := Block{ PrevHash: GetHash(bm.TailBlock),
 		    Ops:ops,
 		    MinerId:minerId,
-		    Depth: bm.tailBlock.Depth+1 }
+		    Depth: bm.TailBlock.Depth+1 }
     minedBlock := ComputeBlock(block , 4) // TODO set numZeros
     if(minedBlock != nil){
         bm.Insert(*minedBlock)
@@ -130,7 +130,7 @@ func (bm *BlockMap) MineAndAddBlock(ops []string, minerId string, blockCh chan *
 // block in the map and the last to be the genesis block
 func (bm *BlockMap) GetLongestChain() ([]Block){
     var blockChain []Block
-    var currBlock = bm.tailBlock
+    var currBlock = bm.TailBlock
     for currBlock.PrevHash != bm.genesisBlock.PrevHash {
         blockChain = append(blockChain, currBlock)
 	currBlock = bm.Map[currBlock.PrevHash]

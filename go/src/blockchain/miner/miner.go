@@ -170,7 +170,7 @@ func main() {
 		// receive a newly mined block, flood it and start mining noop
 		case cb := <-completeBlock:
 			for _, conn := range miner.Connections {
-				conn.Go("Miner.ReceiveBlock", Payload{miner.IncomingMinersAddr, blockmap.getHash(*cb), *cb}, nil, nil)
+				conn.Go("Miner.ReceiveBlock", Payload{miner.IncomingMinersAddr, blockmap.GetHash(*cb), *cb}, nil, nil)
 			}
 			miner.BlockMap.MineAndAddBlock(nil, miner.MinerID, completeBlock)
 		// receive a new order to mine a block, select whether this block waits or goes forward

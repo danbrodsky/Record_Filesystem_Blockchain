@@ -31,7 +31,7 @@ func PrepareMining(){
 
 func ComputeBlock(block Block, numZeros int) *Block{
 	if(InProgress){
-	    fmt.Println("mining stil taking place")
+	    fmt.Println("mining still taking place")
 	    return nil
 	}
 	InProgress = true
@@ -42,7 +42,7 @@ func ComputeBlock(block Block, numZeros int) *Block{
         rand.Seed(time.Now().UnixNano())
 	for ContinueMining{
 		block.Nonce = randSeq(15)
-		hash := getHash(block)
+		hash := GetHash(block)
 		if(hash[len(hash)-numZeros:len(hash)] == zeros){
 			InProgress = false
 			return &block
