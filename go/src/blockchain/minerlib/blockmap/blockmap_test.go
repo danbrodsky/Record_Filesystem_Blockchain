@@ -7,7 +7,7 @@ import(
 
 func TestInsert(t *testing.T) {
     blockCh := make(chan *Block,5)
-    genesisBlock := Block{ PrevHash: "GENESIS", Nonce:"1" , MinerId:"james"}
+    genesisBlock := Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"}
     bm := NewBlockMap(genesisBlock)
     PrepareMining()
     go bm.MineAndAddBlock(nil,"james",blockCh)
@@ -31,7 +31,7 @@ func TestInsert(t *testing.T) {
 
 func TestStop(t *testing.T) {
     blockCh := make(chan *Block,5)
-    genesisBlock := Block{ PrevHash: "GENESIS", Nonce:"1" , MinerId:"james"}
+    genesisBlock := Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"}
     bm := NewBlockMap(genesisBlock)
     PrepareMining()
     go bm.MineAndAddBlock(nil,"james",blockCh)

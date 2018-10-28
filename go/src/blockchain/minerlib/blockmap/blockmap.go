@@ -4,6 +4,7 @@ import (
     "fmt"
     "crypto/md5"
     "encoding/hex"
+    "math/rand"
 )
 
 type BlockMap struct {
@@ -28,9 +29,8 @@ type Block struct{
 }
 
 func NewBlockMap(genesisBlock Block) (blockmap BlockMap) {
-    // TODO check if block is genesis
     blockmap = BlockMap{}
-    genesisBlock.Depth =  0
+    genesisBlock.Depth = 0
     blockmap.tailBlock = genesisBlock
     blockmap.genesisBlock = genesisBlock
     blockmap.Map = make(map[string]Block)
@@ -75,6 +75,18 @@ func (bm *BlockMap) Insert(block Block) (err error){
 	return PrevHashDoesNotExistError(block.PrevHash)
     }
 }
+
+func (bm *BlockMap) updateLongest(block Block) {
+    if block.Depth == bm.tailBlock.Depth {
+        if rand.Intn(2) == 1 {
+            bm.tailBlock = block
+        }
+    }
+    if block.Depth > bm.tailBlock.Depth {
+        bm.tailBlock = block
+    }
+}
+
 
 func (bm *BlockMap) GetMap() (map[string]Block){
     return bm.Map
