@@ -5,6 +5,8 @@ import (
     "crypto/md5"
     "encoding/hex"
     "math/rand"
+    "blockchain/minerlib"
+    "blockchain/rfslib"
 )
 
 type BlockMap struct {
@@ -19,25 +21,28 @@ type BM interface {
     GetLongestChain() ([]Block)
 }
 
+var (
+    Configs minerlib.Settings
+)
 
 type Block struct{
     PrevHash string
-    Ops []string
+    Ops []minerlib.Op
     Nonce string
     MinerId string
     Depth int
 }
 
-func NewBlockMap(genesisBlock Block) (blockmap BlockMap) {
+func Initialize(settings minerlib.Settings, genesisBlock Block) (blockmap BlockMap){
+    Configs = settings
     blockmap = BlockMap{}
     genesisBlock.Depth = 0
     blockmap.tailBlock = genesisBlock
     blockmap.genesisBlock = genesisBlock
     blockmap.Map = make(map[string]Block)
-    blockmap.Map[getHash(genesisBlock)] = genesisBlock
+    blockmap.Map[GetHash(genesisBlock)] = genesisBlock
     return blockmap
 }
-
 
 type PrevHashDoesNotExistError string
 
@@ -52,7 +57,7 @@ func (e BlockNotValidError) Error() string {
 }
 
 // Gets the hash of the block
-func getHash(block Block) string{
+func GetHash(block Block) string{
      h := md5.New()
      h.Write([]byte(fmt.Sprintf("%v", block)))
      return hex.EncodeToString(h.Sum(nil))
@@ -63,13 +68,13 @@ func getHash(block Block) string{
 // and the the previous hash should exist
 // also the hash of the block should end with some number of 0s
 func (bm *BlockMap) Insert(block Block) (err error){
-    if(!BHashEndsWithZeros(block,4)){ // TODO set env variable
-	return BlockNotValidError(getHash(block))
+    if(!BHashEndsWithZeros(block, Configs.PowPerOpBlock)){ // TODO set env variable
+	return BlockNotValidError(GetHash(block))
     }
     if _, ok := bm.Map[block.PrevHash]; ok {
-        bm.Map[getHash(block)] = block
+        bm.Map[GetHash(block)] = block
 	bm.tailBlock = block
-	fmt.Println("tail:", bm.tailBlock)
+//	fmt.Println("tail:", bm.tailBlock)
 	return nil
     } else {
 	return PrevHashDoesNotExistError(block.PrevHash)
@@ -92,9 +97,9 @@ func (bm *BlockMap) GetMap() (map[string]Block){
     return bm.Map
 }
 
-func BHashEndsWithZeros(block Block, numZeros int) bool{
-    hash := getHash(block)
-    for i:= len(hash) - 1; i > len(hash)-1 -numZeros ; i--{
+func BHashEndsWithZeros(block Block, numZeros uint8) bool{
+    hash := GetHash(block)
+    for i:= len(hash) - 1; i > len(hash)-1 -int(numZeros) ; i--{
         if(hash[i] != '0'){
 	    return false
 	}
@@ -109,12 +114,12 @@ func (bm *BlockMap) SetTailBlock(block Block){
 // Mines a block and puts it in the block chain
 // ops is the operation 
 // minerId is the miner of the miner
-func (bm *BlockMap) MineAndAddBlock(ops []string, minerId string, blockCh chan *Block){
-    block := Block{ PrevHash: getHash(bm.tailBlock),
+func (bm *BlockMap) MineAndAddBlock(ops []minerlib.Op, minerId string, blockCh chan *Block){
+    block := Block{ PrevHash: GetHash(bm.tailBlock),
 		    Ops:ops,
 		    MinerId:minerId,
 		    Depth: bm.tailBlock.Depth+1 }
-    minedBlock := ComputeBlock(block , 4) // TODO set numZeros
+    minedBlock := ComputeBlock(block , Configs.PowPerOpBlock) // TODO set numZeros
     if(minedBlock != nil){
         bm.Insert(*minedBlock)
 	blockCh <-minedBlock
@@ -137,6 +142,75 @@ func (bm *BlockMap) GetLongestChain() ([]Block){
     return blockChain
 }
 
+func (bm *BlockMap) LS() map[string]int{
+    bc := bm.GetLongestChain()
+    fs := make(map[string]int)
+    for i := len(bc)-1 ; i >= 0 ; i--{
+        if(bc[i].Ops != nil && len(bc[i].Ops) != 0 ){
+	    for _,op := range bc[i].Ops{
+		switch op.Op{
+		case "append":
+		    if _, ok := fs[op.Fname]; ok {
+                       fs[op.Fname]++
+                    }
+		case "touch":
+		    fs[op.Fname] = 0
+		}
+	    }
+	}
+    }
+    return fs
+}
 
+func (bm *BlockMap) Cat(fname string) []rfslib.Record{
+    bc := bm.GetLongestChain()
+    f := []rfslib.Record{}
+     for i := len(bc)-1 ; i >= 0 ; i--{
+        if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
+            for _,op := range bc[i].Ops{
+		if(op.Op == "append" && op.Fname == fname){
+		    f = append(f, op.Rec)
+		}
+	   }
+        }
+    }
+    return f
+}
 
+func (bm *BlockMap) Tail(k int,fname string) []rfslib.Record{
+    bc := bm.GetLongestChain()
+    f := []rfslib.Record{}
+    for i := 0 ; i < len(bc) ; i++{
+        if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
+            for n := len(bc[i].Ops) -1 ; n >= 0 ; n--{
+		op := bc[i].Ops[n]
+                if(op.Op == "append" && op.Fname == fname){
+                    f = append(f, op.Rec)
+                }
+		if(len(f) == k){
+		    break
+		}
+           }
+        }
+    }
+    return f
+}
+
+func (bm *BlockMap) Head(k int,fname string) []rfslib.Record{
+    bc := bm.GetLongestChain()
+    f := []rfslib.Record{}
+     for i := len(bc)-1 ; i >= 0 ; i--{
+        if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
+            for _,op := range bc[i].Ops{
+                if(op.Op == "append" && op.Fname == fname){
+                    f = append(f, op.Rec)
+	        }
+		if(len(f) == k){
+                    break
+                }
+           }
+        }
+    }
+    return f
+}
 

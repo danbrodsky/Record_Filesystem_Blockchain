@@ -4,7 +4,7 @@ import (
 	"github.com/DistributedClocks/GoVector/govec"
 	"github.com/DistributedClocks/GoVector/govec/vrpc"
 	"blockchain/minerlib/blockmap"
-	//"blockchain/miner/minerlib"
+	"blockchain/minerlib"
 	"io/ioutil"
 	"encoding/json"
 	"fmt"
@@ -28,29 +28,13 @@ var (
     GovecOptions govec.GoLogOptions = govec.GetDefaultLogOptions()
     miner *Miner
     MinerLogger *govec.GoLog
-    Configs Settings
+    Configs minerlib.Settings
 )
 
 type Miner struct {
 	Connections map[string]*rpc.Client
 	WaitingOps map[string]string
 	BlockMap blockmap.BlockMap
-}
-
-type Settings struct {
-    MinedCoinsPerOpBlock   uint8  `json:"MinedCoinsPerOpBlock"`
-    MinedCoinsPerNoOpBlock uint8  `json:"MinedCoinsPerNoOpBlock"`
-    NumCoinsPerFileCreate  uint8  `json:"NumCoinsPerFileCreate"`
-    GenOpBlockTimeout      uint8  `json:"GenOpBlockTimeout"`
-    GenesisBlockHash       string `json:"GenesisBlockHash"`
-    PowPerOpBlock          uint8  `json:"PowPerOpBlock"`
-    PowPerNoOpBlock        uint8  `json:"PowPerNoOpBlock"`
-    ConfirmsPerFileCreate  uint8  `json:"ConfirmsPerFileAppend"`
-    MinerID             string   `json:"MinerID"`
-    PeerMinersAddrs     []string `json:"PeerMinersAddrs"`
-    IncomingMinersAddr  string   `json:"IncomingMinersAddr"`
-    OutgoingMinersIP    string   `json:"OutgoingMinersIP"`
-    IncomingClientsAddr string   `json:"IncomingClientsAddr"`
 }
 
 type Op struct {
@@ -139,7 +123,7 @@ func rpcserver() {
     fmt.Println("Starting rpc server")
     miner = new(Miner)
     MinerLogger = govec.InitGoVector(Configs.MinerID, "./logs/minerlogfile" + Configs.MinerID, govec.GetDefaultConfig())
-    miner.BlockMap = blockmap.NewBlockMap(blockmap.Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"})
+    miner.BlockMap = blockmap.Initialize(Configs,blockmap.Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"})
     miner.WaitingOps = make(map[string]string)
     miner.Connections = make(map[string]*rpc.Client)
     server := rpc.NewServer()
@@ -157,8 +141,7 @@ func rpcclient(){
         client, err := vrpc.RPCDial("tcp", addr, MinerLogger, GovecOptions)
         if err == nil {
             // make this miner known to the other miner
-	    var result int
-	    err := client.Call("Miner.MakeKnown", addr, &result)
+	    err := client.Call("Miner.MakeKnown", addr, nil)
 	    fmt.Println(err)
             miner.Connections[addr] = client
         } else {log.Println("dialing:", err)}

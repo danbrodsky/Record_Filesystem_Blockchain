@@ -29,21 +29,21 @@ func PrepareMining(){
     ContinueMining = true
 }
 
-func ComputeBlock(block Block, numZeros int) *Block{
+func ComputeBlock(block Block, numZeros uint8) *Block{
 	if(InProgress){
 	    fmt.Println("mining stil taking place")
 	    return nil
 	}
 	InProgress = true
 	zeros := ""
-	for i:= 0; i<numZeros; i++{
+	for i:= 0; i<int(numZeros); i++{
 		zeros = zeros+"0"
 	}
         rand.Seed(time.Now().UnixNano())
 	for ContinueMining{
-		block.Nonce = randSeq(15)
-		hash := getHash(block)
-		if(hash[len(hash)-numZeros:len(hash)] == zeros){
+		block.Nonce = randSeq(30)
+		hash := GetHash(block)
+		if(hash[len(hash)-int(numZeros):len(hash)] == zeros){
 			InProgress = false
 			return &block
 		}
