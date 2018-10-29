@@ -143,6 +143,7 @@ func (miner *Miner) ReceiveBlock(payload Payload, reply *int) error{
 	} else if _, ok := miner.BlockMap.Map[blockmap.GetHash(payload.Block)]; !ok {
 		fmt.Println("single block insert")
 
+		// TODO: make Insert return something to indicate if longest chain has changed
 		miner.BlockMap.Insert(payload.Block)
 
 		// send the block to connected miners

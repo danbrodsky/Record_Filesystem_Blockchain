@@ -7,11 +7,12 @@ import (
     "math/rand"
     "blockchain/minerlib"
     "blockchain/rfslib"
+	"time"
 )
 
 type BlockMap struct {
-    tailBlock Block
-    genesisBlock Block
+    TailBlock Block
+    GenesisBlock Block
     Map map[string]Block
 }
 
@@ -33,14 +34,14 @@ type Block struct{
     Depth int
 }
 
-func Initialize(settings minerlib.Settings, genesisBlock Block) (blockmap BlockMap){
+func Initialize(settings minerlib.Settings, GenesisBlock Block) (blockmap BlockMap){
     Configs = settings
     blockmap = BlockMap{}
-    genesisBlock.Depth = 0
-    blockmap.tailBlock = genesisBlock
-    blockmap.genesisBlock = genesisBlock
+    GenesisBlock.Depth = 0
+    blockmap.TailBlock = GenesisBlock
+    blockmap.GenesisBlock = GenesisBlock
     blockmap.Map = make(map[string]Block)
-    blockmap.Map[GetHash(genesisBlock)] = genesisBlock
+    blockmap.Map[GetHash(GenesisBlock)] = GenesisBlock
     return blockmap
 }
 
@@ -68,29 +69,29 @@ func GetHash(block Block) string{
 // and the the previous hash should exist
 // also the hash of the block should end with some number of 0s
 func (bm *BlockMap) Insert(block Block) (err error){
-    if(block.Ops != nil && len(block.Ops) != 0 && !BHashEndsWithZeros(block, Configs.PowPerOpBlock)){ // TODO set env variable
+    if block.Ops != nil && len(block.Ops) != 0 && !BHashEndsWithZeros(block, Configs.PowPerOpBlock) { // TODO set env variable
 	return BlockNotValidError(GetHash(block))
-    } else if(!BHashEndsWithZeros(block, Configs.PowPerNoOpBlock)){
+    } else if !BHashEndsWithZeros(block, Configs.PowPerNoOpBlock) {
 	return BlockNotValidError(GetHash(block))
     }
     if _, ok := bm.Map[block.PrevHash]; ok {
-        bm.Map[GetHash(block)] = block
-	bm.tailBlock = block
-//	fmt.Println("tail:", bm.tailBlock)
-	return nil
+    	bm.Map[GetHash(block)] = block
+		bm.updateLongest(block)
+		fmt.Println("tail:", bm.TailBlock)
+    	return nil
     } else {
 	return PrevHashDoesNotExistError(block.PrevHash)
     }
 }
 
 func (bm *BlockMap) updateLongest(block Block) {
-    if block.Depth == bm.tailBlock.Depth {
+    if block.Depth == bm.TailBlock.Depth {
         if rand.Intn(2) == 1 {
-            bm.tailBlock = block
+            bm.TailBlock = block
         }
     }
-    if block.Depth > bm.tailBlock.Depth {
-        bm.tailBlock = block
+    if block.Depth > bm.TailBlock.Depth {
+        bm.TailBlock = block
     }
 }
 
@@ -110,24 +111,26 @@ func BHashEndsWithZeros(block Block, numZeros uint8) bool{
 }
 
 func (bm *BlockMap) SetTailBlock(block Block){
-    bm.tailBlock = block
+    bm.TailBlock = block
 }
 
 // Mines a block and puts it in the block chain
 // ops is the operation 
 // minerId is the miner of the miner
 func (bm *BlockMap) MineAndAddBlock(ops []minerlib.Op, minerId string, blockCh chan *Block){
-    block := Block{ PrevHash: GetHash(bm.tailBlock),
-		    Ops:ops,
-		    MinerId:minerId,
-		    Depth: bm.tailBlock.Depth+1 }
-    minedBlock := ComputeBlock(block , Configs.PowPerOpBlock) // TODO set numZeros
-    if(minedBlock != nil){
-        bm.Insert(*minedBlock)
-	blockCh <-minedBlock
-    } else{
-	blockCh <-nil//most likely mining was stopped
-    }
+	block := Block{ PrevHash: GetHash(bm.TailBlock),
+		Ops:ops,
+		MinerId:minerId,
+		Depth: bm.TailBlock.Depth+1 }
+	StopMining()
+	time.Sleep(1 * time.Second)
+	PrepareMining()
+	fmt.Println("mining started")
+	minedBlock := ComputeBlock(block , 4) // TODO set numZeros
+	if(minedBlock != nil){
+		bm.Insert(*minedBlock)
+		blockCh <-minedBlock
+	}
 }
 
 
@@ -135,12 +138,12 @@ func (bm *BlockMap) MineAndAddBlock(ops []minerlib.Op, minerId string, blockCh c
 // block in the map and the last to be the genesis block
 func (bm *BlockMap) GetLongestChain() ([]Block){
     var blockChain []Block
-    var currBlock = bm.tailBlock
-    for currBlock.PrevHash != bm.genesisBlock.PrevHash {
+    var currBlock = bm.TailBlock
+    for currBlock.PrevHash != bm.GenesisBlock.PrevHash {
         blockChain = append(blockChain, currBlock)
 	currBlock = bm.Map[currBlock.PrevHash]
     }
-    blockChain = append(blockChain, bm.genesisBlock)
+    blockChain = append(blockChain, bm.GenesisBlock)
     return blockChain
 }
 
