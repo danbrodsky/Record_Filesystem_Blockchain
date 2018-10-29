@@ -1,26 +1,25 @@
 package main
 
 import (
-	"blockchain/miner/blockmap"
+	"blockchain/minerlib"
+	"blockchain/minerlib/blockmap"
 	"encoding/json"
 	"fmt"
 	"github.com/DistributedClocks/GoVector/govec"
 	"github.com/DistributedClocks/GoVector/govec/vrpc"
-	"sort"
-
-	//"blockchain/miner/minerlib"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/rpc"
 	"os"
+	"sort"
 	"time"
 )
 
 
 type M interface {
 	MakeKnown(addr string, reply *int) error
-	ReceiveOp(operation blockmap.Op, reply *int) error
+	ReceiveOp(operation minerlib.Op, reply *int) error
 	ReceiveBlock(payload Payload, reply *int) error
 	GetPreviousBlock(prevHash string, block *blockmap.Block) error
 }
@@ -29,32 +28,16 @@ var (
     GovecOptions = govec.GetDefaultLogOptions()
     miner *Miner
     MinerLogger *govec.GoLog
-    Configs Settings
+    Configs minerlib.Settings
     blockStartTime int
     maxOps = 10
 )
 
 type Miner struct {
 	Connections map[string]*rpc.Client
-	WaitingOps map[int]blockmap.Op
+	WaitingOps map[int]minerlib.Op
 	BlockMap blockmap.BlockMap
-	IncomingOps chan []blockmap.Op
-}
-
-type Settings struct {
-    MinedCoinsPerOpBlock   uint8  `json:"MinedCoinsPerOpBlock"`
-    MinedCoinsPerNoOpBlock uint8  `json:"MinedCoinsPerNoOpBlock"`
-    NumCoinsPerFileCreate  uint8  `json:"NumCoinsPerFileCreate"`
-    GenOpBlockTimeout      uint8  `json:"GenOpBlockTimeout"`
-    GenesisBlockHash       string `json:"GenesisBlockHash"`
-    PowPerOpBlock          uint8  `json:"PowPerOpBlock"`
-    PowPerNoOpBlock        uint8  `json:"PowPerNoOpBlock"`
-    ConfirmsPerFileCreate  uint8  `json:"ConfirmsPerFileAppend"`
-    MinerID             string   `json:"MinerID"`
-    PeerMinersAddrs     []string `json:"PeerMinersAddrs"`
-    IncomingMinersAddr  string   `json:"IncomingMinersAddr"`
-    OutgoingMinersIP    string   `json:"OutgoingMinersIP"`
-    IncomingClientsAddr string   `json:"IncomingClientsAddr"`
+	IncomingOps chan []minerlib.Op
 }
 
 type Payload struct {
@@ -79,7 +62,7 @@ func (miner *Miner) MakeKnown(addr string, reply *int) error {
 	return nil
 }
 
-func (miner *Miner) ReceiveOp(operation blockmap.Op, reply *int) error {
+func (miner *Miner) ReceiveOp(operation minerlib.Op, reply *int) error {
 	if _, ok := miner.WaitingOps[operation.SeqNum]; !ok {
 		// op not received yet, store and flood it
 		miner.WaitingOps[operation.SeqNum] = operation
@@ -97,7 +80,7 @@ func (miner *Miner) ReceiveOp(operation blockmap.Op, reply *int) error {
 		if Configs.GenOpBlockTimeout < uint8(time.Now().Second() - blockStartTime) || len(miner.WaitingOps) >= maxOps {
 			blockStartTime = -1
 
-			newOps := make([]blockmap.Op, len(miner.WaitingOps))
+			newOps := make([]minerlib.Op, len(miner.WaitingOps))
 			for _, o := range miner.WaitingOps {
 				newOps = append(newOps, o)
 			}
@@ -108,7 +91,7 @@ func (miner *Miner) ReceiveOp(operation blockmap.Op, reply *int) error {
 
 			miner.IncomingOps <- newOps
 
-			miner.WaitingOps = make(map[int]blockmap.Op)
+			miner.WaitingOps = make(map[int]minerlib.Op)
 		}
 	}
 	return nil
@@ -185,8 +168,8 @@ func rpcServer() {
     fmt.Println("Starting rpc server")
     miner = new(Miner)
     MinerLogger = govec.InitGoVector(Configs.MinerID, "./logs/minerlogfile" + Configs.MinerID, govec.GetDefaultConfig())
-    miner.BlockMap = blockmap.NewBlockMap(blockmap.Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"})
-    miner.WaitingOps = make(map[int]blockmap.Op)
+    miner.BlockMap = blockmap.Initialize(Configs, blockmap.Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"})
+    miner.WaitingOps = make(map[int]minerlib.Op)
     miner.Connections = make(map[string]*rpc.Client)
     server := rpc.NewServer()
     server.Register(miner)
@@ -219,7 +202,7 @@ func handleBlocks () {
 	go miner.BlockMap.MineAndAddBlock(nil, Configs.MinerID, completeBlock)
 	fmt.Println("mining block now")
 
-	waitingBlocks := make([][]blockmap.Op, 0)
+	waitingBlocks := make([][]minerlib.Op, 0)
 
 	opBeingMined := false
 
