@@ -5,6 +5,7 @@ import (
     "encoding/hex"
     "fmt"
     "math/rand"
+    "time"
 )
 
 type BlockMap struct {
@@ -22,10 +23,16 @@ type BM interface {
 
 type Block struct{
     PrevHash string
-    Ops []string
+    Ops []Op
     Nonce string
     MinerId string
     Depth int
+}
+
+type Op struct {
+    Op string
+    // Unix nano time to make ops unique
+    SeqNum int
 }
 
 
@@ -80,7 +87,7 @@ func (bm *BlockMap) Insert(block Block) (err error){
     }
     if _, ok := bm.Map[block.PrevHash]; ok {
         bm.Map[GetHash(block)] = block
-	bm.TailBlock = block
+	bm.updateLongest(block)
 	fmt.Println("tail:", bm.TailBlock)
 	return nil
     } else {
@@ -109,19 +116,19 @@ func (bm *BlockMap) SetTailBlock(block Block){
 // Mines a block and puts it in the block chain
 // ops is the operation 
 // minerId is the miner of the miner
-func (bm *BlockMap) MineAndAddBlock(ops []string, minerId string, blockCh chan *Block){
+func (bm *BlockMap) MineAndAddBlock(ops []Op, minerId string, blockCh chan *Block){
     block := Block{ PrevHash: GetHash(bm.TailBlock),
 		    Ops:ops,
 		    MinerId:minerId,
 		    Depth: bm.TailBlock.Depth+1 }
+    StopMining()
+    time.Sleep(1 * time.Second)
+    PrepareMining()
+    fmt.Println("mining started")
     minedBlock := ComputeBlock(block , 4) // TODO set numZeros
     if(minedBlock != nil){
         bm.Insert(*minedBlock)
-	blockCh <-minedBlock
-    } else{
-
-        // TODO: Remove this, I don't want a nil in my channel
-	blockCh <-nil//most likely mining was stopped
+	    blockCh <-minedBlock
     }
 }
 

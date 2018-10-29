@@ -11,7 +11,7 @@ import (
 
 var (
     letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456790123456790123456790123456790")
-    InProgress bool
+    InProgress = false
     ContinueMining bool
 )
 
@@ -39,7 +39,7 @@ func ComputeBlock(block Block, numZeros int) *Block{
 	for i:= 0; i<numZeros; i++{
 		zeros = zeros+"0"
 	}
-        rand.Seed(time.Now().UnixNano())
+	rand.Seed(time.Now().UnixNano())
 	for ContinueMining{
 		block.Nonce = randSeq(15)
 		hash := GetHash(block)
