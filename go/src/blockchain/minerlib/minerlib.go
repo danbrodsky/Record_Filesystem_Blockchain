@@ -13,7 +13,8 @@ type Settings struct {
     GenesisBlockHash       string `json:"GenesisBlockHash"`
     PowPerOpBlock          uint8  `json:"PowPerOpBlock"`
     PowPerNoOpBlock        uint8  `json:"PowPerNoOpBlock"`
-    ConfirmsPerFileCreate  uint8  `json:"ConfirmsPerFileAppend"`
+    ConfirmsPerFileCreate  uint8  `json:"ConfirmsPerFileCreate"`
+    ConfirmsPerFileAppend  uint8  `json:"ConfirmsPerFileAppend"`
     MinerID             string   `json:"MinerID"`
     PeerMinersAddrs     []string `json:"PeerMinersAddrs"`
     IncomingMinersAddr  string   `json:"IncomingMinersAddr"`
@@ -27,6 +28,7 @@ type Op struct {
 	K int
 	Fname string
 	Rec rfslib.Record
+	MinerId string
         // random string to make ops unique
         Id string
 }

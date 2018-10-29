@@ -68,7 +68,9 @@ func GetHash(block Block) string{
 // and the the previous hash should exist
 // also the hash of the block should end with some number of 0s
 func (bm *BlockMap) Insert(block Block) (err error){
-    if(!BHashEndsWithZeros(block, Configs.PowPerOpBlock)){ // TODO set env variable
+    if(block.Ops != nil && len(block.Ops) != 0 && !BHashEndsWithZeros(block, Configs.PowPerOpBlock)){ // TODO set env variable
+	return BlockNotValidError(GetHash(block))
+    } else if(!BHashEndsWithZeros(block, Configs.PowPerNoOpBlock)){
 	return BlockNotValidError(GetHash(block))
     }
     if _, ok := bm.Map[block.PrevHash]; ok {
@@ -151,10 +153,14 @@ func (bm *BlockMap) LS() map[string]int{
 		switch op.Op{
 		case "append":
 		    if _, ok := fs[op.Fname]; ok {
-                       fs[op.Fname]++
+		       if(int(Configs.ConfirmsPerFileAppend) <= i){
+                           fs[op.Fname]++
+		       }
                     }
 		case "touch":
-		    fs[op.Fname] = 0
+		    if(int(Configs.ConfirmsPerFileCreate) <= i){
+		        fs[op.Fname] = 0
+		    }
 		}
 	    }
 	}
@@ -165,11 +171,11 @@ func (bm *BlockMap) LS() map[string]int{
 func (bm *BlockMap) Cat(fname string) []rfslib.Record{
     bc := bm.GetLongestChain()
     f := []rfslib.Record{}
-     for i := len(bc)-1 ; i >= 0 ; i--{
+     for i := len(bc)-1 ; i >= int(Configs.ConfirmsPerFileAppend) ; i--{
         if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
             for _,op := range bc[i].Ops{
 		if(op.Op == "append" && op.Fname == fname){
-		    f = append(f, op.Rec)
+                    f = append(f, op.Rec)
 		}
 	   }
         }
@@ -180,7 +186,7 @@ func (bm *BlockMap) Cat(fname string) []rfslib.Record{
 func (bm *BlockMap) Tail(k int,fname string) []rfslib.Record{
     bc := bm.GetLongestChain()
     f := []rfslib.Record{}
-    for i := 0 ; i < len(bc) ; i++{
+    for i := int(Configs.ConfirmsPerFileAppend) ; i < len(bc) ; i++{
         if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
             for n := len(bc[i].Ops) -1 ; n >= 0 ; n--{
 		op := bc[i].Ops[n]
@@ -188,25 +194,33 @@ func (bm *BlockMap) Tail(k int,fname string) []rfslib.Record{
                     f = append(f, op.Rec)
                 }
 		if(len(f) == k){
-		    break
+		    return reverse(f)
 		}
            }
         }
     }
-    return f
+    return reverse(f)
+}
+
+func reverse(l []rfslib.Record) []rfslib.Record{
+    revList := []rfslib.Record{}
+    for i:=len(l)-1 ; i>= 0; i--{
+         revList = append(revList, l[i])
+    }
+    return revList
 }
 
 func (bm *BlockMap) Head(k int,fname string) []rfslib.Record{
     bc := bm.GetLongestChain()
     f := []rfslib.Record{}
-     for i := len(bc)-1 ; i >= 0 ; i--{
+    for i := len(bc)-1 ; i >= int(Configs.ConfirmsPerFileAppend) ; i--{
         if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
             for _,op := range bc[i].Ops{
                 if(op.Op == "append" && op.Fname == fname){
                     f = append(f, op.Rec)
 	        }
 		if(len(f) == k){
-                    break
+                    return f
                 }
            }
         }
@@ -214,3 +228,73 @@ func (bm *BlockMap) Head(k int,fname string) []rfslib.Record{
     return f
 }
 
+func (bm *BlockMap) CountCoins(minerId string) int{
+    bc := bm.GetLongestChain()
+    var coins int = 0
+    var appends int
+    var touches int
+    for i := len(bc) - 1 ; i >= 0 ; i--{
+        if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
+	    appends = 0
+	    touches = 0
+	    for _,op := range bc[i].Ops{
+                switch op.Op{
+                case "append":
+		    if(int(Configs.ConfirmsPerFileAppend) <= i){
+		        if(op.MinerId == minerId){
+			    appends++
+		        }
+	            }
+                case "touch":
+		    if(int(Configs.ConfirmsPerFileCreate) <= i){
+		        if(op.MinerId == minerId){
+                            touches++
+                        }
+	            }
+                }
+            }
+	    //fmt.Println("appens:", appends)
+	    //fmt.Println("touches:", touches)
+	    if(bc[i].MinerId == minerId){
+		coins += int(Configs.MinedCoinsPerOpBlock)
+	    }
+	    coins = coins - appends - touches*int(Configs.NumCoinsPerFileCreate)
+	    //fmt.Println("coins:", coins)
+	} else {
+	    if(bc[i].MinerId == minerId){
+	        coins += int(Configs.MinedCoinsPerNoOpBlock)
+            }
+	}
+    }
+    return coins
+}
+
+func (bm *BlockMap) CheckIfFileExists(fname string) bool{
+    bc := bm.GetLongestChain()
+     for i := len(bc)-1 ; i >= 0 ; i--{
+        if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
+            for _,op := range bc[i].Ops{
+                if(op.Op == "touch" && op.Fname == fname){
+                    return true
+                }
+           }
+        }
+    }
+    return false
+}
+
+// num records in a file
+func (bm *BlockMap) CheckFileSize(fname string) int{
+    bc := bm.GetLongestChain()
+    size := 0
+     for i := len(bc)-1 ; i >= 0 ; i--{
+        if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
+            for _,op := range bc[i].Ops{
+                if(op.Op == "append" && op.Fname == fname){
+                    size ++
+                }
+           }
+        }
+    }
+    return size
+}
