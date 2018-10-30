@@ -31,6 +31,8 @@ var (
     Configs minerlib.Settings
     blockStartTime int
     maxOps = 10
+    confirmationCheckDelay time.Duration = 3
+    confirmationTimeout time.Duration = 30
 )
 
 type Miner struct {
@@ -92,9 +94,53 @@ func (miner *Miner) ReceiveOp(operation minerlib.Op, reply *int) error {
 			miner.IncomingOps <- newOps
 
 			miner.WaitingOps = make(map[int]minerlib.Op)
+
+			// TODO: Add listener to check for op in longest chain with # blocks in front of it
+
+			go miner.checkOpsInLongestChain(newOps, reply)
+
 		}
 	}
 	return nil
+}
+
+func (miner *Miner) checkOpsInLongestChain(pendingOps []minerlib.Op, reply *int) {
+
+	for true {
+		time.Sleep(confirmationCheckDelay * time.Second)
+		longestChain := miner.BlockMap.GetLongestChain()
+
+		var confirmsRequired uint8 = 0
+
+		select {
+
+		case <- time.After(confirmationTimeout * time.Second):
+			for _, o := range pendingOps {
+				miner.ReceiveOp(o, nil)
+			}
+
+		default:
+			for i, o := range pendingOps {
+				// TODO: Confirm this is the correct format for ops
+				if o.Op == "append" {
+					confirmsRequired = Configs.ConfirmsPerFileAppend
+				}
+				if o.Op == "touch" {
+					confirmsRequired = Configs.ConfirmsPerFileCreate
+				}
+				for _, b := range longestChain[confirmsRequired:] {
+					for _, bo := range b.Ops {
+						if bo.SeqNum == o.SeqNum {
+							pendingOps = append(pendingOps[:i], pendingOps[i+1:]...)
+
+							// notify rfslib that the op was added successfully
+							*reply = o.SeqNum
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 func (miner *Miner) ReceiveBlock(payload Payload, reply *int) error{
