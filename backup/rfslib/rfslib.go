@@ -12,50 +12,13 @@ package rfslib
 import (
     "fmt"
     "net"
-    "time"
-    "math/rand"
-
-    "github.com/DistributedClocks/GoVector/govec"
-    "github.com/DistributedClocks/GoVector/govec/vrpc"
+    "bufio"
+    "strings"
 )
 
-type Op struct {
-    Op string
-    K int
-    Fname string
-    Rec Record
-    MinerId string
-    SeqNum int
-}
-var (
-    GovecOptions = govec.GetDefaultLogOptions()
-    RfsLogger *govec.GoLog
-    serial string
-    letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456790123456790123456790123456790")
-)
-
-func randSeq(n int) string {
-    b := make([]rune, n)
-    for i := range b {
-        b[i] = letters[rand.Intn(len(letters))]
-    }
-    return string(b)
-}
-
-
-type LsReply struct{
-    Err   error
-    Files map[string]int
-}
 
 // A Record is the unit of file access (reading/appending) in RFS.
 type Record [512]byte
-
-type RecordsReply struct{
-    Err     error
-    Records []Record
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // <ERROR DEFINITIONS>
@@ -111,8 +74,6 @@ type RecordsFileSystem struct {
 }
 
 var (
-    MinerAddr string
-    LocalAddr string
     initFlag = false
     Conn net.Listener
     MinerConn net.Conn
@@ -179,37 +140,26 @@ type RFS interface {
 // succeeds. This call can return the following errors:
 // - Networking errors related to localAddr or minerAddr
 func Initialize(localAddr string, minerAddr string) (rfs RFS, err error) {
-	rand.Seed(time.Now().UnixNano())
-	serial = randSeq(10)
-	MinerAddr = minerAddr
-	LocalAddr = localAddr
-	RfsLogger = govec.InitGoVector("client", "./logs/rfslogfile" , govec.GetDefaultConfig())
-	err = checkIfConnected(minerAddr)
+	Conn, err = net.Listen("tcp", localAddr)
+        if(err != nil){
+            fmt.Println("failed to listen tcp",err)
+            return rfs,err
+        }
+        MinerConn, err = net.Dial("tcp", minerAddr)
 	if(err != nil){
-	    return nil, err
-	} else{
+            fmt.Println("failed to connect with miner",err)
+            return rfs,DisconnectedError(minerAddr)
+        }
+        //RFSINIT is the command to ask the miner if it's indeed connected to the network
+        fmt.Fprintf(MinerConn, "RFSINIT\n")
+	message, _ := bufio.NewReader(MinerConn).ReadString('\n')
+        if(strings.Contains(message,"true")){
 	    rfs = RecordsFileSystem{}
-            return rfs,nil
-	}
+	    return rfs,nil
+        } else{
+            return nil, DisconnectedError(minerAddr)
+        }
 }
-
-func checkIfConnected(minerAddr string) error{
-    fmt.Println("Checking if connected")
-    client, err := vrpc.RPCDial("tcp", minerAddr, RfsLogger, GovecOptions)
-    if err == nil {
-        // make this miner known to the other miner
-        var result int
-        err := client.Call("Miner.IsConnected", serial,&result)
-	if(result == 1){
-	    return nil
-	} else {
-	    return DisconnectedError(minerAddr)
-	}
-        fmt.Println(err)
-    } else {fmt.Println("dialing:", err)}
-    return err
-}
-
 
 func CloseConnection(){
 	MinerConn.Close()
@@ -231,24 +181,8 @@ func (rfs RecordsFileSystem) CreateFile(fname string) (err error){
 // Can return the following errors:
 // - DisconnectedError
 func (rfs RecordsFileSystem) ListFiles() (fnames []string, err error){
-    client, err := vrpc.RPCDial("tcp", MinerAddr, RfsLogger, GovecOptions)
-    if err == nil {
-        // make this miner known to the other miner
-	var rep LsReply
-	op := Op{Op:"ls"}
-        err := client.Call("Miner.Ls", op, &rep)
-        if(rep.Err == nil){
-	    files := []string{}
-            for k := range rep.Files{
-                files = append(files, k)
-            }
-            return files,nil
-        } else {
-            return nil, rep.Err
-        }
-        fmt.Println(err)
-    } else {fmt.Println("dialing:", err)}
-    return nil, err //STUB TODO
+    returnVal := []string{"123.txt"}
+    return returnVal, nil //STUB TODO
 }
 
 // Returns the total number of records in a file with filename

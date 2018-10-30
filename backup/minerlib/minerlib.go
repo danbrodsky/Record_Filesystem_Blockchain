@@ -24,12 +24,21 @@ type Settings struct {
 
 // possible ops {ls,cat,tail,head,append,touch}
 type Op struct {
+<<<<<<< HEAD
+        Op string
+=======
     Op string
-    K int
-    Fname string
-    Rec rfslib.Record
-    MinerId string
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
+	K int
+	Fname string
+	Rec rfslib.Record
+	MinerId string
+<<<<<<< HEAD
+        // random string to make ops unique
+        Id string
+=======
     SeqNum int
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
 }
 
 type File struct {

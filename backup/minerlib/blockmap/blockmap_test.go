@@ -33,15 +33,15 @@ func TestInsert(t *testing.T) {
     genesisBlock := Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"}
     bm := Initialize(configs,genesisBlock)
     PrepareMining()
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
     if(len(bm.GetMap()) != 6){
 	t.Fail()
@@ -69,6 +69,29 @@ func TestInsert(t *testing.T) {
     }
 }
 
+
+func TestStop(t *testing.T) {
+    blockCh := make(chan *Block,5)
+    genesisBlock := Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"}
+    bm := Initialize(configs,genesisBlock)
+    PrepareMining()
+    go bm.MineAndAddBlock(nil,"james",blockCh)
+    StopMining()
+    <-blockCh
+    PrepareMining()
+    go bm.MineAndAddBlock(nil,"james",blockCh)
+    StopMining()
+    <-blockCh
+    PrepareMining()
+    go bm.MineAndAddBlock(nil,"james",blockCh)
+    StopMining()
+    <-blockCh
+    if(len(bm.GetMap()) != 1){
+	fmt.Println("TestStop:","map should be empty")
+        t.Fail()
+    }
+}
+
 func TestReads(t *testing.T) {
     plan, e := ioutil.ReadFile("configs.json")
     if e == nil {
@@ -83,8 +106,13 @@ func TestReads(t *testing.T) {
     genesisBlock := Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"}
     bm := Initialize(configs,genesisBlock)
     PrepareMining()
-    op := minerlib.Op{Op:"touch", Fname:"a.txt", SeqNum: 1, MinerId:"james"}
-    op1 := minerlib.Op{Op:"touch", Fname:"b.txt", SeqNum: 2, MinerId:"james"}
+<<<<<<< HEAD
+    op := minerlib.Op{Op:"touch", Fname:"a.txt", Id:"123", MinerId:"james"}
+    op1 := minerlib.Op{Op:"touch", Fname:"b.txt", Id:"123", MinerId:"james"}
+=======
+    op := minerlib.Op{Op:"touch", Fname:"a.txt", SeqNum: 123, MinerId:"james"}
+    op1 := minerlib.Op{Op:"touch", Fname:"b.txt", SeqNum: 123, MinerId:"james"}
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
     rec1 := rfslib.Record{}
     copy(rec1[:], "hi how ya doing today? fine? so am I :):D:D:D1")
     rec2 := rfslib.Record{}
@@ -94,55 +122,50 @@ func TestReads(t *testing.T) {
     rec4 := rfslib.Record{}
     copy(rec4[:], "hi how ya doing today? fine? so am I :):D4")
 
-
-    op2 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,SeqNum: 3, MinerId:"james"}
-    op9 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,SeqNum: 4, MinerId:"james"}
-    op10 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,SeqNum: 5, MinerId:"james"}
-    op11 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,SeqNum: 6, MinerId:"james"}
-
-    go bm.MineAndAddOpBlock([]minerlib.Op{op, op1},"james",blockCh)
+<<<<<<< HEAD
+    op2 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,Id:"123", MinerId:"james"}
+=======
+    op2 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,SeqNum: 123, MinerId:"james"}
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
+    go bm.MineAndAddBlock([]minerlib.Op{op, op1, op2, op2},"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock([]minerlib.Op{op2},"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+<<<<<<< HEAD
+    op8 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec4 ,Id:"123", MinerId:"james"}
+    op3 := minerlib.Op{Op:"touch", Fname:"c.txt", Id:"123", MinerId:"james"}
+    go bm.MineAndAddBlock([]minerlib.Op{op3,op8},"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    op7 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec3 ,Id:"123", MinerId:"james"}
+    op4 := minerlib.Op{Op:"append", Fname:"b.txt", Rec:rec2 ,Id:"123", MinerId:"james"}
+    op5 := minerlib.Op{Op:"append", Fname:"c.txt", Rec:rec3 ,Id:"123", MinerId:"james"}
+=======
+    op8 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec4 ,SeqNum: 123, MinerId:"james"}
+    op3 := minerlib.Op{Op:"touch", Fname:"c.txt", SeqNum: 123, MinerId:"james"}
+    go bm.MineAndAddBlock([]minerlib.Op{op3,op8},"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    op7 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec3 ,SeqNum: 123, MinerId:"james"}
+    op4 := minerlib.Op{Op:"append", Fname:"b.txt", Rec:rec2 ,SeqNum: 456, MinerId:"james"}
+    op5 := minerlib.Op{Op:"append", Fname:"c.txt", Rec:rec3 ,SeqNum: 789, MinerId:"james"}
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
+    go bm.MineAndAddBlock([]minerlib.Op{op2,op5},"james",blockCh)
     <-blockCh
-
-    go bm.MineAndAddOpBlock([]minerlib.Op{op9, op2,op10},"james",blockCh)
+    go bm.MineAndAddBlock([]minerlib.Op{op4,op4,op7},"james",blockCh)
     <-blockCh
-    op8 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec4 ,SeqNum: 7, MinerId:"james"}
-    op3 := minerlib.Op{Op:"touch", Fname:"c.txt", SeqNum: 8, MinerId:"james"}
-    go bm.MineAndAddOpBlock([]minerlib.Op{op3,op8},"james",blockCh)
+<<<<<<< HEAD
+    op6 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec2 ,Id:"123", MinerId:"james"}
+=======
+    op6 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec2 ,SeqNum: 123, MinerId:"james"}
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
+    go bm.MineAndAddBlock([]minerlib.Op{op4,op5,op6},"james",blockCh)
     <-blockCh
-
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
-
-    op7 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec3 ,SeqNum: 9, MinerId:"james"}
-    op4 := minerlib.Op{Op:"append", Fname:"b.txt", Rec:rec2 ,SeqNum: 10, MinerId:"james"}
-    op12 := minerlib.Op{Op:"append", Fname:"b.txt", Rec:rec2 ,SeqNum: 11, MinerId:"james"}
-    op13 := minerlib.Op{Op:"append", Fname:"b.txt", Rec:rec2 ,SeqNum: 12, MinerId:"james"}
-    op5 := minerlib.Op{Op:"append", Fname:"c.txt", Rec:rec3 ,SeqNum: 13, MinerId:"james"}
-    op14 := minerlib.Op{Op:"append", Fname:"c.txt", Rec:rec3 ,SeqNum: 14, MinerId:"james"}
-    go bm.MineAndAddOpBlock([]minerlib.Op{op11,op5},"james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
-    go bm.MineAndAddOpBlock([]minerlib.Op{op4,op12,op7},"james",blockCh)
-    <-blockCh
-    op6 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec2 ,SeqNum: 15, MinerId:"james"}
-    go bm.MineAndAddOpBlock([]minerlib.Op{op13,op14,op6},"james",blockCh)
-    <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
-    <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
-    <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
-    <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
     ls := bm.LS()
     if(ls["a.txt"] != 7 || ls["b.txt"] != 3 || ls["c.txt"] != 2){
@@ -179,7 +202,7 @@ func TestReads(t *testing.T) {
     }
 
     coins := bm.CountCoins("james")
-    expectedCoins := 0 - int(configs.NumCoinsPerFileCreate)*3 - 12 + int(configs.MinedCoinsPerNoOpBlock)*10 + int(configs.MinedCoinsPerOpBlock)*6
+    expectedCoins := 0 - int(configs.NumCoinsPerFileCreate)*3 - 12 + int(configs.MinedCoinsPerNoOpBlock)*4 + int(configs.MinedCoinsPerOpBlock)*6
     if(coins != expectedCoins){
 	    fmt.Println("TestReads:", "CountCoinsFail:", coins, "expected:", expectedCoins)
 	    t.Fail()
@@ -196,13 +219,17 @@ func TestConfirms(t *testing.T) {
     } else {
         log.Fatal("file error:", e)
     }
-
     blockCh := make(chan *Block,5)
     genesisBlock := Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"}
     bm := Initialize(configs,genesisBlock)
     PrepareMining()
-    op := minerlib.Op{Op:"touch", Fname:"a.txt", SeqNum: 1, MinerId:"james"}
-    op1 := minerlib.Op{Op:"touch", Fname:"b.txt", SeqNum: 2, MinerId:"james"}
+<<<<<<< HEAD
+    op := minerlib.Op{Op:"touch", Fname:"a.txt", Id:"123", MinerId:"james"}
+    op1 := minerlib.Op{Op:"touch", Fname:"b.txt", Id:"123", MinerId:"james"}
+=======
+    op := minerlib.Op{Op:"touch", Fname:"a.txt", SeqNum: 123, MinerId:"james"}
+    op1 := minerlib.Op{Op:"touch", Fname:"b.txt", SeqNum: 123, MinerId:"james"}
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
     rec1 := rfslib.Record{}
     copy(rec1[:], "hi how ya doing today? fine? so am I :):D:D:D1")
     rec2 := rfslib.Record{}
@@ -212,89 +239,93 @@ func TestConfirms(t *testing.T) {
     rec4 := rfslib.Record{}
     copy(rec4[:], "hi how ya doing today? fine? so am I :):D4")
 
-
-    op2 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,SeqNum: 3, MinerId:"james"}
-    op9 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,SeqNum: 4, MinerId:"james"}
-    op10 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,SeqNum: 5, MinerId:"james"}
-    op11 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,SeqNum: 6, MinerId:"james"}
-
-    go bm.MineAndAddOpBlock([]minerlib.Op{op, op1},"james",blockCh)
+<<<<<<< HEAD
+    op2 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,Id:"123", MinerId:"james"}
+=======
+    op2 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec1 ,SeqNum: 123, MinerId:"james"}
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
+    go bm.MineAndAddBlock([]minerlib.Op{op, op1, op2, op2},"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock([]minerlib.Op{op2},"james",blockCh)
     <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+<<<<<<< HEAD
+    op8 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec4 ,Id:"123", MinerId:"james"}
+    op3 := minerlib.Op{Op:"touch", Fname:"c.txt", Id:"123", MinerId:"james"}
+=======
+    op8 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec4 ,SeqNum: 123, MinerId:"james"}
+    op3 := minerlib.Op{Op:"touch", Fname:"c.txt", SeqNum: 123, MinerId:"james"}
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
+    go bm.MineAndAddBlock([]minerlib.Op{op3,op8},"james",blockCh)
     <-blockCh
-
-    go bm.MineAndAddOpBlock([]minerlib.Op{op9, op2,op10},"james",blockCh)
-    <-blockCh
-    op8 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec4 ,SeqNum: 7, MinerId:"james"}
-    op3 := minerlib.Op{Op:"touch", Fname:"c.txt", SeqNum: 8, MinerId:"james"}
-    go bm.MineAndAddOpBlock([]minerlib.Op{op3,op8},"james",blockCh)
-    <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
-    <-blockCh
-    go bm.MineAndAddNoOpBlock("james",blockCh)
-    <-blockCh
-
-    op7 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec3 ,SeqNum: 9, MinerId:"james"}
-    op4 := minerlib.Op{Op:"append", Fname:"b.txt", Rec:rec2 ,SeqNum: 10, MinerId:"james"}
-    op12 := minerlib.Op{Op:"append", Fname:"b.txt", Rec:rec2 ,SeqNum: 11, MinerId:"james"}
-    op13 := minerlib.Op{Op:"append", Fname:"b.txt", Rec:rec2 ,SeqNum: 12, MinerId:"james"}
-    op5 := minerlib.Op{Op:"append", Fname:"c.txt", Rec:rec3 ,SeqNum: 13, MinerId:"james"}
-    op14 := minerlib.Op{Op:"append", Fname:"c.txt", Rec:rec3 ,SeqNum: 14, MinerId:"james"}
-    go bm.MineAndAddOpBlock([]minerlib.Op{op5,op11},"james",blockCh)
-    <-blockCh
-    go bm.MineAndAddOpBlock([]minerlib.Op{op4,op12,op7},"james",blockCh)
-    <-blockCh
-    op6 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec2 ,SeqNum: 15, MinerId:"james"}
-    go bm.MineAndAddOpBlock([]minerlib.Op{op13,op14,op6},"james",blockCh)
-    <-blockCh
-
-    if(!bm.CheckIfOpExists(1)){
-        fmt.Println("TestConfirms:", "op should exit")
+    if(bm.CheckIfFileExists("c.txt") != true){
+        fmt.Println("TestConfirms:", "c.txt should exist")
+        t.Fail()
+    }
+    fsize := bm.CheckFileSize("a.txt")
+    if(fsize != 4){
+	fmt.Println("TestConfirms:", "a.txt should have a size of 4 but is the size:", fsize)
         t.Fail()
     }
 
+<<<<<<< HEAD
+    op7 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec3 ,Id:"123", MinerId:"james"}
+    op4 := minerlib.Op{Op:"append", Fname:"b.txt", Rec:rec2 ,Id:"123", MinerId:"james"}
+    op5 := minerlib.Op{Op:"append", Fname:"c.txt", Rec:rec3 ,Id:"123", MinerId:"james"}
+=======
+    op7 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec3 ,SeqNum: 123, MinerId:"james"}
+    op4 := minerlib.Op{Op:"append", Fname:"b.txt", Rec:rec2 ,SeqNum: 123, MinerId:"james"}
+    op5 := minerlib.Op{Op:"append", Fname:"c.txt", Rec:rec3 ,SeqNum: 123, MinerId:"james"}
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
+    go bm.MineAndAddBlock([]minerlib.Op{op2,op5},"james",blockCh)
+    <-blockCh
+    go bm.MineAndAddBlock([]minerlib.Op{op4,op4,op7},"james",blockCh)
+    <-blockCh
+<<<<<<< HEAD
+    op6 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec2 ,Id:"123", MinerId:"james"}
+=======
+    op6 := minerlib.Op{Op:"append", Fname:"a.txt", Rec:rec2 ,SeqNum: 123, MinerId:"james"}
+>>>>>>> 48658500cf8f7842c4336279188a8d016bd794a1
+    go bm.MineAndAddBlock([]minerlib.Op{op4,op5,op6},"james",blockCh)
+    <-blockCh
+
     /////////////////////////////// 0 Confirms blocks
     ls := bm.LS()
-    if(ls["a.txt"] != 4 || ls["b.txt"] != 0 || ls["c.txt"] != 0 ){
+    if(ls["a.txt"] != 3 || ls["b.txt"] != 0 || ls["c.txt"] != 0 ){
 	fmt.Println("TestConfirms0:", "ls fail")
         t.Fail()
     }
     cat := bm.Cat("a.txt")
-    if(len(cat) != 4 || cat[0] != rec1 ||
+    if(len(cat) != 3 || cat[0] != rec1 ||
        cat[1] != rec1 ||
-       cat[2] != rec1 ||
-       cat[3] != rec4 ){
+       cat[2] != rec1){
         fmt.Println("TestConfirms0:", "cat fail")
         t.Fail()
     }
 
     tail := bm.Tail(2,"a.txt")
     if(len(tail) != 2 || tail[0] != rec1 ||
-       tail[1] != rec4){
+       tail[1] != rec1){
         fmt.Println("TestConfirms0:", "tail fail")
         t.Fail()
     }
 
     head := bm.Head(5,"a.txt")
-    if(len(head) != 4 || head[0] != rec1 ||
+    if(len(head) != 3 || head[0] != rec1 ||
        head[1] != rec1 ||
-       head[2] != rec1 ||
-       head[3] != rec4){
+       head[2] != rec1){
         fmt.Println("TestConfirms0:", "head fail")
         t.Fail()
     }
 
     coins := bm.CountCoins("james")
-    expectedCoins := 0 - int(configs.NumCoinsPerFileCreate)*3 - 4 + int(configs.MinedCoinsPerNoOpBlock)*4 + int(configs.MinedCoinsPerOpBlock)*6
+    expectedCoins := 0 - int(configs.NumCoinsPerFileCreate)*3 - 3 + int(configs.MinedCoinsPerNoOpBlock)*0 + int(configs.MinedCoinsPerOpBlock)*6
     if(coins != expectedCoins){
             fmt.Println("TestConfirms0:", "TestConfirms0:", coins, "expected:", expectedCoins)
             t.Fail()
     }
 
     ////////////////////////////////// 1 Confirm block
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
     ls = bm.LS()
     if(ls["a.txt"] != 4 || ls["b.txt"] != 0 || ls["c.txt"] != 0){
@@ -326,7 +357,7 @@ func TestConfirms(t *testing.T) {
     }
 
     coins = bm.CountCoins("james")
-    expectedCoins = 0 - int(configs.NumCoinsPerFileCreate)*3 - 4 + int(configs.MinedCoinsPerNoOpBlock)*5 + int(configs.MinedCoinsPerOpBlock)*6
+    expectedCoins = 0 - int(configs.NumCoinsPerFileCreate)*3 - 4 + int(configs.MinedCoinsPerNoOpBlock)*1 + int(configs.MinedCoinsPerOpBlock)*6
     if(coins != expectedCoins){
             fmt.Println("TestConfirms1:", "TestConfirms0:", coins, "expected:", expectedCoins)
             t.Fail()
@@ -337,7 +368,7 @@ func TestConfirms(t *testing.T) {
         fmt.Println("TestConfirms:", "c.txt should exist")
 	t.Fail()
     }
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
     ls = bm.LS()
     if(ls["a.txt"] != 5 || ls["b.txt"] != 0 || ls["c.txt"] != 1){
@@ -372,14 +403,14 @@ func TestConfirms(t *testing.T) {
     }
 
     coins = bm.CountCoins("james")
-    expectedCoins = 0 - int(configs.NumCoinsPerFileCreate)*3 - 6 + int(configs.MinedCoinsPerNoOpBlock)*6 + int(configs.MinedCoinsPerOpBlock)*6
+    expectedCoins = 0 - int(configs.NumCoinsPerFileCreate)*3 - 6 + int(configs.MinedCoinsPerNoOpBlock)*2 + int(configs.MinedCoinsPerOpBlock)*6
     if(coins != expectedCoins){
             fmt.Println("TestConfirms1:", "TestConfirms0:", coins, "expected:", expectedCoins)
             t.Fail()
     }
 
     ////////////////////////////////// 3 Confirm block
-    go bm.MineAndAddNoOpBlock("james",blockCh)
+    go bm.MineAndAddBlock(nil,"james",blockCh)
     <-blockCh
     ls = bm.LS()
     if(ls["a.txt"] != 6 || ls["b.txt"] != 2 || ls["c.txt"] != 1){
@@ -415,7 +446,7 @@ func TestConfirms(t *testing.T) {
     }
 
     coins = bm.CountCoins("james")
-    expectedCoins = 0 - int(configs.NumCoinsPerFileCreate)*3 - 9 + int(configs.MinedCoinsPerNoOpBlock)*7 + int(configs.MinedCoinsPerOpBlock)*6
+    expectedCoins = 0 - int(configs.NumCoinsPerFileCreate)*3 - 9 + int(configs.MinedCoinsPerNoOpBlock)*3 + int(configs.MinedCoinsPerOpBlock)*6
     if(coins != expectedCoins){
             fmt.Println("TestConfirms1:", "TestConfirms0:", coins, "expected:", expectedCoins)
             t.Fail()
