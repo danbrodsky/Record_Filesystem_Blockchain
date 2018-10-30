@@ -25,10 +25,10 @@ type Settings struct {
 // possible ops {ls,cat,tail,head,append,touch}
 type Op struct {
     Op string
-	K int
-	Fname string
-	Rec rfslib.Record
-	MinerId string
+    K int
+    Fname string
+    Rec rfslib.Record
+    MinerId string
     SeqNum int
 }
 

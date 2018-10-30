@@ -53,7 +53,7 @@ func (miner *Miner) MakeKnown(addr string, reply *int) error {
 	if _, ok := miner.Connections[addr]; !ok {
 		fmt.Println("here2")
 		MinerLogger.LogLocalEvent("MakeKnown Called", GovecOptions)
-		client, err := vrpc.RPCDial("tcp", addr, MinerLogger, GovecOptions)
+                client, err := vrpc.RPCDial("tcp", addr, MinerLogger, GovecOptions)
 		if err == nil {
 			miner.Connections[addr] = client
 			fmt.Println("connecting client addr: " + addr)
@@ -246,7 +246,7 @@ func handleBlocks () {
 
 	// create a noop block and start mining for a nonce
 	completeBlock := make(chan *blockmap.Block)
-	go miner.BlockMap.MineAndAddBlock(nil, Configs.MinerID, completeBlock)
+	go miner.BlockMap.MineAndAddNoOpBlock(Configs.MinerID, completeBlock)
 	fmt.Println("mining block now")
 
 	waitingBlocks := make([][]minerlib.Op, 0)
@@ -266,10 +266,10 @@ func handleBlocks () {
 			}
 			// start on noop or queued op block right away
 			if len(waitingBlocks) == 0 {
-				go miner.BlockMap.MineAndAddBlock(nil, Configs.MinerID, completeBlock)
+				go miner.BlockMap.MineAndAddNoOpBlock(Configs.MinerID, completeBlock)
 				opBeingMined = false
 			} else {
-				go miner.BlockMap.MineAndAddBlock(waitingBlocks[0],Configs.MinerID, completeBlock)
+				go miner.BlockMap.MineAndAddOpBlock(waitingBlocks[0],Configs.MinerID, completeBlock)
 				fmt.Println("mining block now")
 				waitingBlocks = waitingBlocks[1:]
 				opBeingMined = true
@@ -281,7 +281,7 @@ func handleBlocks () {
 
 			// noop block being mined, stop it and start this op block
 			if !opBeingMined {
-				go miner.BlockMap.MineAndAddBlock(waitingBlocks[0],Configs.MinerID, completeBlock)
+				go miner.BlockMap.MineAndAddOpBlock(waitingBlocks[0],Configs.MinerID, completeBlock)
 				waitingBlocks = waitingBlocks[1:]
 				opBeingMined = true
 			}
