@@ -2,11 +2,21 @@ client {"client":1}
 Initialization Complete
 client {"client":2}
 Making RPC call
-client {"client":3, "M1":3}
+client {"M1":3348, "client":10, "M2":3337}
 Received RPC Call response from server
-client {"M1":3, "client":4}
+client {"client":11, "M2":3337, "M1":3348}
 Making RPC call
-client {"client":5, "M1":5}
+client {"client":12, "M2":3337, "M1":3350}
 Received RPC Call response from server
-client {"client":6, "M1":5}
+client {"client":13, "M2":3337, "M1":3350}
 Making RPC call
+client {"client":14, "M2":3337, "M1":3352}
+Received RPC Call response from server
+client {"client":15, "M2":3337, "M1":3352}
+Making RPC call
+client {"client":16, "M2":4161, "M1":4178}
+Received RPC Call response from server
+client {"M1":4178, "client":17, "M2":4161}
+Making RPC call
+client {"client":18, "M2":4161, "M1":4180}
+Received RPC Call response from server

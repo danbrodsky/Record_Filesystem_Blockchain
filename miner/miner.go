@@ -31,7 +31,7 @@ var (
     MinerLogger *govec.GoLog
     Configs minerlib.Settings
     blockStartTime int
-    maxOps = 10
+    maxOps = 1
     confirmationCheckDelay time.Duration = 3
     confirmationTimeout time.Duration = 30
 )
@@ -55,8 +55,9 @@ type AppendReply struct {
 
 // returns 1 if miner is connected else 0
 func (miner *Miner) IsConnected(clientId string ,res *string) error {
-     fmt.Println("client connection id:", clientId)
-     if len(miner.Connections) == 0 {
+     // fmt.Println("client connection id:", clientId)
+     // fmt.Println(len(miner.Connections))
+     if len(miner.Connections) != 0 {
         *res = Configs.MinerID
      } else{
         *res = "disconnected"
@@ -137,8 +138,11 @@ func (miner *Miner) Touch(op minerlib.Op, reply *error) error {
 			miner.ReceiveOp(op, nil)
 
 		default:
-			if miner.BlockMap.CheckIfOpIsValid(op) {
+			if miner.BlockMap.CheckIfOpIsConfirmed(op) == 1 {
 				return nil
+			}
+			if miner.BlockMap.CheckIfOpIsConfirmed(op) == -1 {
+				return rfslib.FileExistsError(op.SeqNum)
 			}
 		}
 	}
@@ -172,8 +176,11 @@ func (miner *Miner) Append(op minerlib.Op, reply *AppendReply) error {
 			miner.ReceiveOp(op, nil)
 
 		default:
-			if miner.BlockMap.CheckIfOpIsValid(op) {
+			if miner.BlockMap.CheckIfOpIsConfirmed(op) == 1 {
 				return nil
+			}
+			if miner.BlockMap.CheckIfOpIsConfirmed(op) == -1 {
+				return rfslib.FileExistsError(op.SeqNum)
 			}
 		}
 	}
@@ -189,7 +196,7 @@ func (miner *Miner) MakeKnown(addr string, reply *int) error {
 		client, err := vrpc.RPCDial("tcp", addr, MinerLogger, GovecOptions)
 		if err == nil {
 			miner.Connections[addr] = client
-			fmt.Println("connecting client addr: " + addr)
+			// fmt.Println("connecting client addr: " + addr)
 		} else {
 			log.Println("dialing:", err)
 		}
@@ -198,6 +205,12 @@ func (miner *Miner) MakeKnown(addr string, reply *int) error {
 }
 
 func (miner *Miner) ReceiveOp(operation minerlib.Op, reply *int) error {
+
+	for _, io := range miner.BlockMap.InvalidOps {
+		if operation == io {
+			return nil
+		}
+	}
 	if _, ok := miner.WaitingOps[operation.SeqNum]; !ok {
 		// op not received yet, store and flood it
 		miner.WaitingOps[operation.SeqNum] = operation
@@ -213,17 +226,23 @@ func (miner *Miner) ReceiveOp(operation minerlib.Op, reply *int) error {
 
 		// block timeout or block full, send what you have
 		if Configs.GenOpBlockTimeout < uint8(time.Now().Second() - blockStartTime) || len(miner.WaitingOps) >= maxOps {
+			// fmt.Println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ creating new op block @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 			blockStartTime = -1
-
-			newOps := make([]minerlib.Op, len(miner.WaitingOps))
+			newOps := make([]minerlib.Op, 0)
 			for _, o := range miner.WaitingOps {
+				// fmt.Println(o.Op)
 				newOps = append(newOps, o)
 			}
+			// fmt.Println(operation.Op)
+
+			// fmt.Println(newOps[0].Op)
 
 			sort.Slice(newOps, func(i, j int) bool {
 				return newOps[i].SeqNum < newOps[j].SeqNum
 			})
 
+			// fmt.Println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ creating new op block @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+			// fmt.Println(newOps)
 			miner.IncomingOps <- newOps
 
 			miner.WaitingOps = make(map[int]minerlib.Op)
@@ -236,7 +255,7 @@ func (miner *Miner) ReceiveOp(operation minerlib.Op, reply *int) error {
 }
 
 func (miner *Miner) ReceiveBlock(payload Payload, reply *int) error{
-	fmt.Println("return address in payload: ", payload.ReturnAddr)
+	// fmt.Println("return address in payload: ", payload.ReturnAddr)
 
 	// if miner is behind, get previous BlockMap.Map until caught up
 	if _, ok := miner.BlockMap.Map[payload.Block.PrevHash]; !ok {
@@ -248,10 +267,10 @@ func (miner *Miner) ReceiveBlock(payload Payload, reply *int) error{
 		var prevBlock *blockmap.Block
 		prevBlock = &payload.Block
 		for !ok {
-			fmt.Println(prevBlock)
+			// fmt.Println(prevBlock)
 			miner.Connections[payload.ReturnAddr].Call("Miner.GetPreviousBlock", prevBlock.PrevHash, &prevBlock)
-			fmt.Println("return block")
-			fmt.Println(prevBlock)
+			// fmt.Println("return block")
+			// fmt.Println(prevBlock)
 			missingBlocks = append( missingBlocks, *prevBlock)
 			// Validate the block, if it fails then dump missing blocks and break
 			// TODO: change this
@@ -279,13 +298,13 @@ func (miner *Miner) ReceiveBlock(payload Payload, reply *int) error{
 		}
 
 	} else if _, ok := miner.BlockMap.Map[blockmap.GetHash(payload.Block)]; !ok {
-		fmt.Println("single block insert")
+		fmt.Println("single block insert #####################################################################################################################################")
 
 		// TODO: make Insert return something to indicate if longest chain has changed
 		miner.BlockMap.Insert(payload.Block)
-		fmt.Println("current block chain state:",miner.BlockMap.GetLongestChain())
+		// fmt.Println("current block chain state:",miner.BlockMap.GetLongestChain())
 		// send the block to connected miners
-		fmt.Println(miner.Connections)
+		// fmt.Println(miner.Connections)
 		for _, conn := range miner.Connections {
 			conn.Go("Miner.ReceiveBlock", Payload{Configs.IncomingMinersAddr, payload.Block}, nil, nil)
 		}
@@ -297,19 +316,20 @@ func (miner *Miner) ReceiveBlock(payload Payload, reply *int) error{
 func (miner *Miner) GetPreviousBlock(prevHash string, block *blockmap.Block) error {
 
 	if _, ok := miner.BlockMap.Map[prevHash]; ok {
-		fmt.Println(miner.BlockMap.Map[prevHash])
+		// fmt.Println(miner.BlockMap.Map[prevHash])
 		*block = miner.BlockMap.Map[prevHash]
 	}
 	return nil
 }
 
 func rpcServer() {
-    fmt.Println("Starting rpc server")
+    // fmt.Println("Starting rpc server")
     miner = new(Miner)
     MinerLogger = govec.InitGoVector(Configs.MinerID, "./logs/minerlogfile" + Configs.MinerID, govec.GetDefaultConfig())
     miner.BlockMap = blockmap.Initialize(Configs, blockmap.Block{ PrevHash: "GENESIS", Nonce:"GENESIS" , MinerId:"GENESIS"})
     miner.WaitingOps = make(map[int]minerlib.Op)
     miner.Connections = make(map[string]*rpc.Client)
+    miner.IncomingOps = make(chan []minerlib.Op)
     server := rpc.NewServer()
     server.Register(miner)
     l, e := net.Listen("tcp", Configs.IncomingMinersAddr)
@@ -320,16 +340,18 @@ func rpcServer() {
 }
 
 func rpcClient(){
-    fmt.Println("Starting rpc client")
+    // fmt.Println("Starting rpc client")
     for _, addr := range Configs.PeerMinersAddrs {
         client, err := vrpc.RPCDial("tcp", addr, MinerLogger, GovecOptions)
         if err == nil {
         	// make this miner known to the other miner
 	    	var result int
 	    	err := client.Go("Miner.MakeKnown", Configs.IncomingMinersAddr, &result, nil)
-	    	fmt.Println(err)
+	    	if err != nil {
+				fmt.Println(err)
+			}
 	    	miner.Connections[addr] = client
-	    	fmt.Println("addr added: ", addr)
+	    	// fmt.Println("addr added: ", addr)
         } else {log.Println("dialing:", err)}
     }
 }
@@ -339,7 +361,7 @@ func handleBlocks () {
 	// create a noop block and start mining for a nonce
 	completeBlock := make(chan *blockmap.Block)
 	go miner.BlockMap.MineAndAddNoOpBlock(Configs.MinerID, completeBlock)
-	fmt.Println("mining block now")
+	// fmt.Println("mining block now")
 
 	waitingBlocks := make([][]minerlib.Op, 0)
 
@@ -348,20 +370,26 @@ func handleBlocks () {
 	for true {
 		if len(miner.Connections) == 0 {
 			time.Sleep( 1 * time.Second)
-			fmt.Println("disconnected")
+			// fmt.Println("disconnected")
 			continue
 		}
-		fmt.Println("waiting for block")
+		// fmt.Println("waiting for block")
 		select {
 		// no miners connected, do nothing
 
 		// receive a newly mined block, flood it and start mining noop
 		case cb := <-completeBlock:
-			fmt.Println("mined block received")
-			fmt.Println("miner connections: ", len(miner.Connections))
-			fmt.Println(miner.Connections)
+			// fmt.Println("mined block received")
+			// fmt.Println("miner connections: ", len(miner.Connections))
+			// fmt.Println(miner.Connections)
+			if cb.PrevHash == "invalid" {
+				go miner.BlockMap.MineAndAddNoOpBlock(Configs.MinerID, completeBlock)
+				opBeingMined = false
+				continue
+			}
 			for _, conn := range miner.Connections {
-				conn.Go("Miner.ReceiveBlock", Payload{Configs.IncomingMinersAddr, *cb}, nil, nil)
+				var reply int
+				conn.Go("Miner.ReceiveBlock", Payload{Configs.IncomingMinersAddr, *cb}, &reply, nil)
 			}
 			// start on noop or queued op block right away
 			if len(waitingBlocks) == 0 {
@@ -369,7 +397,7 @@ func handleBlocks () {
 				opBeingMined = false
 			} else {
 				go miner.BlockMap.MineAndAddOpBlock(waitingBlocks[0],Configs.MinerID, completeBlock)
-				fmt.Println("mining block now")
+				// fmt.Println("mining block now")
 				waitingBlocks = waitingBlocks[1:]
 				opBeingMined = true
 			}
@@ -377,18 +405,16 @@ func handleBlocks () {
 		// receive a new order to mine a block, select whether this block waits or goes forward
 		case ib := <-miner.IncomingOps:
 			waitingBlocks = append(waitingBlocks, ib)
-
+			// fmt.Println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ added op block to waiting blocks @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 			// noop block being mined, stop it and start this op block
 			if !opBeingMined {
+				// fmt.Println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ starting to mine op block @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 				go miner.BlockMap.MineAndAddOpBlock(waitingBlocks[0],Configs.MinerID, completeBlock)
 				waitingBlocks = waitingBlocks[1:]
 				opBeingMined = true
 			}
 		// optimization: if longest chain changes then stop mining and recreate the current block with ops in longest chain not included
 		// case rb := <- miner.redoBlock:
-
-
-		// TODO: Client logic goes here
 		}
 	}
 }
@@ -414,4 +440,3 @@ func main() {
 	handleBlocks()
 
 }
-

@@ -207,12 +207,14 @@ func checkIfConnected(minerAddr string) error{
     if err == nil {
         // make this miner known to the other miner
         var result string
-        err := client.Call("Miner.IsConnected", serial,&result)
+		err := client.Call("Miner.IsConnected", serial,&result)
+	fmt.Println(result)
 	if result != "disconnected" {
 		minerConnection = client
 		minerId = result
 	    return nil
 	} else {
+		fmt.Println("disconnected rfslib")
 	    return DisconnectedError(minerAddr)
 	}
         fmt.Println(err)
