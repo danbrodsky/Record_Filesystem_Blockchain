@@ -152,11 +152,11 @@ func (miner *Miner) Append(op minerlib.Op, reply *AppendReply) error {
 	if err != nil {
 		switch err.(type) {
 		case rfslib.FileDoesNotExistError:
-			*reply = AppendReply{nil,rfslib.FileDoesNotExistError(op.SeqNum)}
+			*reply = AppendReply{-1,rfslib.FileDoesNotExistError(op.SeqNum)}
 		case rfslib.FileExistsError:
-			*reply = AppendReply{nil,rfslib.FileExistsError(op.SeqNum)}
+			*reply = AppendReply{-1,rfslib.FileExistsError(op.SeqNum)}
 		case rfslib.BadFilenameError:
-			*reply = AppendReply{nil,rfslib.BadFilenameError(op.SeqNum)}
+			*reply = AppendReply{-1,rfslib.BadFilenameError(op.SeqNum)}
 		}
 		return nil
 	}
@@ -346,8 +346,15 @@ func handleBlocks () {
 	opBeingMined := false
 
 	for true {
+		if len(miner.Connections) == 0 {
+			time.Sleep( 1 * time.Second)
+			fmt.Println("disconnected")
+			continue
+		}
 		fmt.Println("waiting for block")
 		select {
+		// no miners connected, do nothing
+
 		// receive a newly mined block, flood it and start mining noop
 		case cb := <-completeBlock:
 			fmt.Println("mined block received")

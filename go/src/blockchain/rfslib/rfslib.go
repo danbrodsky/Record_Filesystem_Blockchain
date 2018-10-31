@@ -241,7 +241,7 @@ func checkIfFileExists(fname string) (bool, error) {
 // - FileExistsError
 // - BadFilenameError
 func (rfs RecordsFileSystem) CreateFile(fname string) (err error){
-	newOp := Op{"touch", nil, fname, nil, minerId, 0}
+	newOp := Op{"touch", -1, fname, Record{}, minerId, 0}
 	var reply error
 	err = minerConnection.Call("Miner.Touch", newOp, &reply)
 	if err != nil {
@@ -312,14 +312,14 @@ func (rfs RecordsFileSystem) ReadRec(fname string, recordNum uint16, record *Rec
 // - FileDoesNotExistError
 // - FileMaxLenReachedError
 func (rfs RecordsFileSystem) AppendRec(fname string, record *Record) (recordNum uint16, err error){
-	newOp := Op{"append", nil, fname, *record, minerId, 0}
+	newOp := Op{"append", -1, fname, *record, minerId, 0}
 	var reply AppendReply
 	err = minerConnection.Call("Miner.Append", newOp, &reply)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 	if reply.Err != nil {
-		return -1, reply.Err
+		return 0, reply.Err
 	}
 	return uint16(reply.RecordNum), nil
 
