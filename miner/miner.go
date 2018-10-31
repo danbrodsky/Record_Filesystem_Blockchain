@@ -3,8 +3,8 @@ package main
 import (
 	"blockchain/minerlib"
 	"blockchain/minerlib/blockmap"
-	"encoding/json"
 	"blockchain/rfslib"
+	"encoding/json"
 	"fmt"
 	"github.com/DistributedClocks/GoVector/govec"
 	"github.com/DistributedClocks/GoVector/govec/vrpc"
@@ -48,13 +48,18 @@ type Payload struct {
 	Block blockmap.Block
 }
 
+type AppendReply struct {
+	RecordNum int
+	Err error
+}
+
 // returns 1 if miner is connected else 0
-func (miner *Miner) IsConnected(clientId string ,res *int) error {
+func (miner *Miner) IsConnected(clientId string ,res *string) error {
      fmt.Println("client connection id:", clientId)
-     if(len(miner.Connections) == 0){
-        *res = 0
+     if len(miner.Connections) == 0 {
+        *res = Configs.MinerID
      } else{
-        *res = 1
+        *res = "disconnected"
      }
 
      return nil
@@ -105,6 +110,79 @@ func (miner *Miner) Head(op minerlib.Op, reply *rfslib.RecordsReply) error {
      return nil
 }
 
+func (miner *Miner) Touch(op minerlib.Op, reply *error) error {
+	op.SeqNum = int(time.Now().UnixNano())
+
+	err := miner.BlockMap.ValidateOp(op)
+	if err != nil {
+		switch err.(type) {
+		case rfslib.FileDoesNotExistError:
+			*reply = rfslib.FileDoesNotExistError(op.SeqNum)
+		case rfslib.FileExistsError:
+			*reply = rfslib.FileExistsError(op.SeqNum)
+		case rfslib.BadFilenameError:
+			*reply = rfslib.BadFilenameError(op.SeqNum)
+		}
+		return nil
+	}
+
+	miner.ReceiveOp(op, nil)
+
+	for true {
+		time.Sleep(confirmationCheckDelay * time.Second)
+
+		select {
+
+		case <-time.After(confirmationTimeout * time.Second):
+			miner.ReceiveOp(op, nil)
+
+		default:
+			if miner.BlockMap.CheckIfOpIsValid(op) {
+				return nil
+			}
+		}
+	}
+	return nil
+}
+
+func (miner *Miner) Append(op minerlib.Op, reply *AppendReply) error {
+	op.SeqNum = int(time.Now().UnixNano())
+
+	err := miner.BlockMap.ValidateOp(op)
+	if err != nil {
+		switch err.(type) {
+		case rfslib.FileDoesNotExistError:
+			*reply = AppendReply{nil,rfslib.FileDoesNotExistError(op.SeqNum)}
+		case rfslib.FileExistsError:
+			*reply = AppendReply{nil,rfslib.FileExistsError(op.SeqNum)}
+		case rfslib.BadFilenameError:
+			*reply = AppendReply{nil,rfslib.BadFilenameError(op.SeqNum)}
+		}
+		return nil
+	}
+
+	miner.ReceiveOp(op, nil)
+
+	for true {
+		time.Sleep(confirmationCheckDelay * time.Second)
+
+		select {
+
+		case <-time.After(confirmationTimeout * time.Second):
+			miner.ReceiveOp(op, nil)
+
+		default:
+			if miner.BlockMap.CheckIfOpIsValid(op) {
+				return nil
+			}
+		}
+	}
+
+	//*reply = AppendReply{, nil}
+	return nil
+}
+
+
 func (miner *Miner) MakeKnown(addr string, reply *int) error {
 	if _, ok := miner.Connections[addr]; !ok {
 		MinerLogger.LogLocalEvent("MakeKnown Called", GovecOptions)
@@ -152,50 +230,9 @@ func (miner *Miner) ReceiveOp(operation minerlib.Op, reply *int) error {
 
 			// TODO: Add listener to check for op in longest chain with # blocks in front of it
 
-			go miner.checkOpsInLongestChain(newOps, reply)
-
 		}
 	}
 	return nil
-}
-
-func (miner *Miner) checkOpsInLongestChain(pendingOps []minerlib.Op, reply *int) {
-
-	for true {
-		time.Sleep(confirmationCheckDelay * time.Second)
-		longestChain := miner.BlockMap.GetLongestChain()
-
-		var confirmsRequired uint8 = 0
-
-		select {
-
-		case <- time.After(confirmationTimeout * time.Second):
-			for _, o := range pendingOps {
-				miner.ReceiveOp(o, nil)
-			}
-
-		default:
-			for i, o := range pendingOps {
-				// TODO: Confirm this is the correct format for ops
-				if o.Op == "append" {
-					confirmsRequired = Configs.ConfirmsPerFileAppend
-				}
-				if o.Op == "touch" {
-					confirmsRequired = Configs.ConfirmsPerFileCreate
-				}
-				for _, b := range longestChain[confirmsRequired:] {
-					for _, bo := range b.Ops {
-						if bo.SeqNum == o.SeqNum {
-							pendingOps = append(pendingOps[:i], pendingOps[i+1:]...)
-
-							// notify rfslib that the op was added successfully
-							*reply = o.SeqNum
-						}
-					}
-				}
-			}
-		}
-	}
 }
 
 func (miner *Miner) ReceiveBlock(payload Payload, reply *int) error{
