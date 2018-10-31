@@ -317,6 +317,7 @@ func (rfs RecordsFileSystem) AppendRec(fname string, record *Record) (recordNum 
 	newOp := Op{"append", -1, fname, *record, minerId, 0}
 	var reply AppendReply
 	err = minerConnection.Call("Miner.Append", newOp, &reply)
+	fmt.Println(reply)
 	if err != nil {
 		return 0, err
 	}

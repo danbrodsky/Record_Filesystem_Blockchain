@@ -53,6 +53,26 @@ type AppendReply struct {
 	Err error
 }
 
+type BadFilenameError string
+
+func (e BadFilenameError) Error() string {
+	return fmt.Sprintf("RFS: Filename [%s] has the wrong length", string(e))
+}
+
+// Contains filename
+type FileDoesNotExistError string
+
+func (e FileDoesNotExistError) Error() string {
+	return fmt.Sprintf("RFS: Cannot open file [%s] in D mode as it does not exist locally", string(e))
+}
+
+// Contains filename
+type FileExistsError string
+
+func (e FileExistsError) Error() string {
+	return fmt.Sprintf("RFS: Cannot create file with filename [%s] as it already exists", string(e))
+}
+
 // returns 1 if miner is connected else 0
 func (miner *Miner) IsConnected(clientId string ,res *string) error {
      // fmt.Println("client connection id:", clientId)
@@ -135,6 +155,7 @@ func (miner *Miner) Touch(op minerlib.Op, reply *error) error {
 		select {
 
 		case <-time.After(confirmationTimeout * time.Second):
+			fmt.Println("sending touch op again &&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
 			miner.ReceiveOp(op, nil)
 
 		default:
@@ -154,6 +175,7 @@ func (miner *Miner) Append(op minerlib.Op, reply *AppendReply) error {
 
 	err := miner.BlockMap.ValidateOp(op)
 	if err != nil {
+		fmt.Println(err)
 		switch err.(type) {
 		case rfslib.FileDoesNotExistError:
 			*reply = AppendReply{-1,rfslib.FileDoesNotExistError(op.SeqNum)}
@@ -173,19 +195,20 @@ func (miner *Miner) Append(op minerlib.Op, reply *AppendReply) error {
 		select {
 
 		case <-time.After(confirmationTimeout * time.Second):
+			fmt.Println("timeout, sending op again")
 			miner.ReceiveOp(op, nil)
-
 		default:
 			if miner.BlockMap.CheckIfOpIsConfirmed(op) == 1 {
+				fmt.Println("Append op confirmed")
+				*reply = AppendReply{miner.BlockMap.GetRecordPosition(op.SeqNum, op.Fname), nil}
 				return nil
 			}
 			if miner.BlockMap.CheckIfOpIsConfirmed(op) == -1 {
-				return rfslib.FileExistsError(op.SeqNum)
+				*reply = AppendReply{0, rfslib.FileExistsError(op.SeqNum)}
+				return nil
 			}
 		}
 	}
-
-	*reply = AppendReply{miner.BlockMap.GetRecordPosition(op.SeqNum, op.Fname), nil}
 	return nil
 }
 
@@ -206,11 +229,6 @@ func (miner *Miner) MakeKnown(addr string, reply *int) error {
 
 func (miner *Miner) ReceiveOp(operation minerlib.Op, reply *int) error {
 
-	for _, io := range miner.BlockMap.InvalidOps {
-		if operation == io {
-			return nil
-		}
-	}
 	if _, ok := miner.WaitingOps[operation.SeqNum]; !ok {
 		// op not received yet, store and flood it
 		miner.WaitingOps[operation.SeqNum] = operation
@@ -228,7 +246,7 @@ func (miner *Miner) ReceiveOp(operation minerlib.Op, reply *int) error {
 		if Configs.GenOpBlockTimeout < uint8(time.Now().Second() - blockStartTime) || len(miner.WaitingOps) >= maxOps {
 			// fmt.Println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ creating new op block @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 			blockStartTime = -1
-			newOps := make([]minerlib.Op, 0)
+			var newOps []minerlib.Op
 			for _, o := range miner.WaitingOps {
 				// fmt.Println(o.Op)
 				newOps = append(newOps, o)
@@ -245,7 +263,7 @@ func (miner *Miner) ReceiveOp(operation minerlib.Op, reply *int) error {
 			// fmt.Println(newOps)
 			miner.IncomingOps <- newOps
 
-			miner.WaitingOps = make(map[int]minerlib.Op)
+			//miner.WaitingOps = make(map[int]minerlib.Op)
 
 			// TODO: Add listener to check for op in longest chain with # blocks in front of it
 
@@ -263,7 +281,7 @@ func (miner *Miner) ReceiveBlock(payload Payload, reply *int) error{
 		// add missing BlockMap.Map to a temp store in case they're fake
 		missingBlocks := make([]blockmap.Block, 0)
 		missingBlocks = append( missingBlocks, payload.Block)
-
+		fmt.Println(missingBlocks)
 		var prevBlock *blockmap.Block
 		prevBlock = &payload.Block
 		for !ok {
@@ -271,43 +289,40 @@ func (miner *Miner) ReceiveBlock(payload Payload, reply *int) error{
 			miner.Connections[payload.ReturnAddr].Call("Miner.GetPreviousBlock", prevBlock.PrevHash, &prevBlock)
 			// fmt.Println("return block")
 			// fmt.Println(prevBlock)
-			missingBlocks = append( missingBlocks, *prevBlock)
-			// Validate the block, if it fails then dump missing blocks and break
-			// TODO: change this
-			//err := miner.BlockMap.Insert(*prevBlock)
-			var err error = nil
-			if err != nil {
-				switch err.(type) {
-				case blockmap.BlockNotValidError:
-					missingBlocks = make([]blockmap.Block, 0)
-					break
-				// TODO: Add more error handling if necessary
-				}
-			}
+			missingBlocks = append(missingBlocks, *prevBlock)
+
 			_, ok = miner.BlockMap.Map[prevBlock.PrevHash]
 		}
-
+		fmt.Println(missingBlocks)
 		// insert all the blocks in missingBlocks into the blockmap
 		for i := range missingBlocks {
-			// each block already checked, no need to check for errors again
-			miner.BlockMap.Insert(missingBlocks[len(missingBlocks)-i-1])
-		}
-
-		for _, conn := range miner.Connections {
-			conn.Go("Miner.ReceiveBlock", Payload{Configs.IncomingMinersAddr, payload.Block}, nil, nil)
+			fmt.Println(missingBlocks[len(missingBlocks)-i-1])
+			err := miner.BlockMap.ValidateOps(missingBlocks[len(missingBlocks)-i-1].Ops)
+			if err == nil {
+				fmt.Println("Inserting catch up block %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+				miner.BlockMap.Insert(missingBlocks[len(missingBlocks)-i-1])
+				for _, conn := range miner.Connections {
+					conn.Go("Miner.ReceiveBlock", Payload{Configs.IncomingMinersAddr, payload.Block}, nil, nil)
+				}			} else {
+				missingBlocks = make([]blockmap.Block, 0)
+				break
+			}
 		}
 
 	} else if _, ok := miner.BlockMap.Map[blockmap.GetHash(payload.Block)]; !ok {
 		fmt.Println("single block insert #####################################################################################################################################")
 
-		// TODO: make Insert return something to indicate if longest chain has changed
-		miner.BlockMap.Insert(payload.Block)
+		err := miner.BlockMap.ValidateOps(payload.Block.Ops)
+		if err == nil {
+			fmt.Println("Inserting single block %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+			miner.BlockMap.Insert(payload.Block)
+			for _, conn := range miner.Connections {
+				conn.Go("Miner.ReceiveBlock", Payload{Configs.IncomingMinersAddr, payload.Block}, nil, nil)
+			}
+		}
 		// fmt.Println("current block chain state:",miner.BlockMap.GetLongestChain())
 		// send the block to connected miners
 		// fmt.Println(miner.Connections)
-		for _, conn := range miner.Connections {
-			conn.Go("Miner.ReceiveBlock", Payload{Configs.IncomingMinersAddr, payload.Block}, nil, nil)
-		}
 	}
 
 	return nil
@@ -359,7 +374,7 @@ func rpcClient(){
 func handleBlocks () {
 
 	// create a noop block and start mining for a nonce
-	completeBlock := make(chan *blockmap.Block)
+	completeBlock := make(chan blockmap.Block)
 	go miner.BlockMap.MineAndAddNoOpBlock(Configs.MinerID, completeBlock)
 	// fmt.Println("mining block now")
 
@@ -370,7 +385,7 @@ func handleBlocks () {
 	for true {
 		if len(miner.Connections) == 0 {
 			time.Sleep( 1 * time.Second)
-			// fmt.Println("disconnected")
+			fmt.Println("disconnected")
 			continue
 		}
 		// fmt.Println("waiting for block")
@@ -379,17 +394,21 @@ func handleBlocks () {
 
 		// receive a newly mined block, flood it and start mining noop
 		case cb := <-completeBlock:
-			// fmt.Println("mined block received")
+			fmt.Println("mined block received")
 			// fmt.Println("miner connections: ", len(miner.Connections))
 			// fmt.Println(miner.Connections)
-			if cb.PrevHash == "invalid" {
-				go miner.BlockMap.MineAndAddNoOpBlock(Configs.MinerID, completeBlock)
-				opBeingMined = false
-				continue
+
+			// remove ops in this block from waitingOps
+			for sn, o := range miner.WaitingOps {
+				for _, ob := range cb.Ops {
+					if o == ob {
+						delete(miner.WaitingOps, sn)
+					}
+				}
 			}
 			for _, conn := range miner.Connections {
 				var reply int
-				conn.Go("Miner.ReceiveBlock", Payload{Configs.IncomingMinersAddr, *cb}, &reply, nil)
+				conn.Go("Miner.ReceiveBlock", Payload{Configs.IncomingMinersAddr, cb}, &reply, nil)
 			}
 			// start on noop or queued op block right away
 			if len(waitingBlocks) == 0 {
@@ -399,6 +418,7 @@ func handleBlocks () {
 				go miner.BlockMap.MineAndAddOpBlock(waitingBlocks[0],Configs.MinerID, completeBlock)
 				// fmt.Println("mining block now")
 				waitingBlocks = waitingBlocks[1:]
+				fmt.Println("waiting blocks: ", waitingBlocks)
 				opBeingMined = true
 			}
 
