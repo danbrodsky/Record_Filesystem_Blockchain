@@ -53,6 +53,32 @@ type AppendReply struct {
 	Err error
 }
 
+type RecordsReply struct{
+    Err     error
+    Records []rfslib.Record
+}
+
+type TotalRecReply struct{
+    Err error
+    NumRecords int
+}
+
+type ReadRecReqest struct{
+    Fname string
+    RecordNum uint16
+}
+
+type LsReply struct{
+    Err   error
+    Files []string
+}
+
+type ReadRecReply struct{
+    Err error
+    Rec rfslib.Record
+}
+
+
 // returns 1 if miner is connected else 0
 func (miner *Miner) IsConnected(clientId string ,res *string) error {
      fmt.Println("client connection id:", clientId)
@@ -66,46 +92,52 @@ func (miner *Miner) IsConnected(clientId string ,res *string) error {
 }
 
 
-
-func (miner *Miner) Ls(op minerlib.Op, reply *rfslib.LsReply) error {
+func (miner *Miner) Ls(op minerlib.Op, reply *LsReply) error {
      if(len(miner.Connections) == 0){
 	reply.Err = rfslib.DisconnectedError(Configs.MinerID)
      } else{
-	reply.Files = miner.BlockMap.LS()
+	fs := miner.BlockMap.LS()
+	files := []string{}
+	for key, _ := range fs{
+            files = append(files, key)
+        }
+	reply.Files = files
      }
 
      return nil
 }
 
-func (miner *Miner) Cat(op minerlib.Op, reply *rfslib.RecordsReply) error {
-     if(len(miner.Connections) == 0){
+func (miner *Miner) TotalRecs(fname string, reply *TotalRecReply) error{
+    if(len(miner.Connections) == 0){
         reply.Err = rfslib.DisconnectedError(Configs.MinerID)
-     } else if(!miner.BlockMap.CheckIfFileExists(op.Fname)){
-	reply.Err = rfslib.FileDoesNotExistError(op.Fname)
      } else{
-        reply.Records = miner.BlockMap.Cat(op.Fname)
+        fs := miner.BlockMap.LS()
+	if val, ok := fs[fname]; ok{
+	    reply.NumRecords = val
+	} else {
+	    reply.Err = rfslib.FileDoesNotExistError(fname)
+	}
      }
      return nil
 }
 
-func (miner *Miner) Tail(op minerlib.Op, reply *rfslib.RecordsReply) error {
-     if(len(miner.Connections) == 0){
-        reply.Err = rfslib.DisconnectedError(Configs.MinerID)
-     } else if(!miner.BlockMap.CheckIfFileExists(op.Fname)){
-        reply.Err = rfslib.FileDoesNotExistError(op.Fname)
-     } else{
-        reply.Records = miner.BlockMap.Tail(op.K,op.Fname)
-     }
-     return nil
-}
 
-func (miner *Miner) Head(op minerlib.Op, reply *rfslib.RecordsReply) error {
+func (miner *Miner) ReadRec(req ReadRecReqest, reply *ReadRecReply) error {
      if(len(miner.Connections) == 0){
         reply.Err = rfslib.DisconnectedError(Configs.MinerID)
-     } else if(!miner.BlockMap.CheckIfFileExists(op.Fname)){
-        reply.Err = rfslib.FileDoesNotExistError(op.Fname)
+     } else if(!miner.BlockMap.CheckIfFileExists(req.Fname)){
+	reply.Err = rfslib.FileDoesNotExistError(req.Fname)
      } else{
-        reply.Records = miner.BlockMap.Head(op.K, op.Fname)
+	flag := true
+	for (flag){
+	rec,err := miner.BlockMap.GetRecAtPosition(req.Fname,int(req.RecordNum))
+	    if(err == nil){
+	        reply.Rec = rec
+		flag = false
+	    }else{
+		time.Sleep(1 * time.Second)
+	    }
+	}
      }
      return nil
 }

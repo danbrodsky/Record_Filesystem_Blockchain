@@ -22,18 +22,5 @@ func TestInitialize(t *testing.T) {
      }
      fmt.Println(ls)
 
-     err = rfs.CreateFile("test")
-     if err != nil {
-         t.Errorf(err.Error())
-     }
-     var byteArray [512]byte
-     copy(byteArray[:], "test record")
-     var testRecord Record = byteArray
-    recNum, err := rfs.AppendRec("test", &testRecord)
-    if err != nil {
-        t.Errorf(err.Error())
-    }
-    fmt.Println(recNum)
-
 }
 

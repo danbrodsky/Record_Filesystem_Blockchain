@@ -2,11 +2,9 @@ client {"client":1}
 Initialization Complete
 client {"client":2}
 Making RPC call
-client {"client":3, "M1":3}
+client {"M1":19026, "M2":63514, "M3":63497, "client":3}
 Received RPC Call response from server
-client {"M1":3, "client":4}
+client {"client":4, "M1":19026, "M2":63514, "M3":63497}
 Making RPC call
-client {"client":5, "M1":5}
+client {"M2":63514, "M3":63497, "client":5, "M1":19028}
 Received RPC Call response from server
-client {"client":6, "M1":5}
-Making RPC call

@@ -12,8 +12,7 @@ package rfslib
 import (
     "fmt"
     "net"
-	"net/rpc"
-	"time"
+    "time"
     "math/rand"
 
     "github.com/DistributedClocks/GoVector/govec"
@@ -33,8 +32,6 @@ var (
     RfsLogger *govec.GoLog
     serial string
     letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456790123456790123456790123456790")
-    minerConnection *rpc.Client
-    minerId string
 )
 
 func randSeq(n int) string {
@@ -57,11 +54,6 @@ type Record [512]byte
 type RecordsReply struct{
     Err     error
     Records []Record
-}
-
-type AppendReply struct {
-	RecordNum int
-	Err error
 }
 
 
@@ -206,11 +198,9 @@ func checkIfConnected(minerAddr string) error{
     client, err := vrpc.RPCDial("tcp", minerAddr, RfsLogger, GovecOptions)
     if err == nil {
         // make this miner known to the other miner
-        var result string
+        var result int
         err := client.Call("Miner.IsConnected", serial,&result)
-	if result != "disconnected" {
-		minerConnection = client
-		minerId = result
+	if(result == 1){
 	    return nil
 	} else {
 	    return DisconnectedError(minerAddr)
@@ -225,15 +215,6 @@ func CloseConnection(){
 	MinerConn.Close()
 }
 
-func checkIfFileExists(fname string) (bool, error) {
-	var reply *bool
-	err := minerConnection.Call("Miner.CheckForFile", fname, &reply)
-	if err != nil {
-		return false, err
-	}
-	return *reply, err
-}
-
 // Creates a new empty RFS file with name fname.
 //
 // Can return the following errors:
@@ -241,16 +222,7 @@ func checkIfFileExists(fname string) (bool, error) {
 // - FileExistsError
 // - BadFilenameError
 func (rfs RecordsFileSystem) CreateFile(fname string) (err error){
-	newOp := Op{"touch", -1, fname, Record{}, minerId, 0}
-	var reply error
-	err = minerConnection.Call("Miner.Touch", newOp, &reply)
-	if err != nil {
-		return err
-	}
-	if reply != nil {
-		return reply
-	}
-    return nil
+    return nil //STUB TODO
 }
 
 // Returns a slice of strings containing filenames of all the
@@ -312,15 +284,5 @@ func (rfs RecordsFileSystem) ReadRec(fname string, recordNum uint16, record *Rec
 // - FileDoesNotExistError
 // - FileMaxLenReachedError
 func (rfs RecordsFileSystem) AppendRec(fname string, record *Record) (recordNum uint16, err error){
-	newOp := Op{"append", -1, fname, *record, minerId, 0}
-	var reply AppendReply
-	err = minerConnection.Call("Miner.Append", newOp, &reply)
-	if err != nil {
-		return 0, err
-	}
-	if reply.Err != nil {
-		return 0, reply.Err
-	}
-	return uint16(reply.RecordNum), nil
-
+    return 1,nil
 }
