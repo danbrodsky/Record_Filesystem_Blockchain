@@ -313,22 +313,14 @@ func (rfs RecordsFileSystem) ReadRec(fname string, recordNum uint16, record *Rec
 // - FileMaxLenReachedError
 func (rfs RecordsFileSystem) AppendRec(fname string, record *Record) (recordNum uint16, err error){
 	newOp := Op{"append", nil, fname, *record, minerId, 0}
-	var reply int
+	var reply AppendReply
 	err = minerConnection.Call("Miner.Append", newOp, &reply)
 	if err != nil {
 		return -1, err
 	}
-	// TODO: Add a call to get the position of this record here
-	return 1, nil
-	newOp := Op{"touch", nil, fname, nil, minerId, 0}
-	var reply error
-	err = minerConnection.Call("Miner.Touch", newOp, &reply)
-	if err != nil {
-		return err
+	if reply.Err != nil {
+		return -1, reply.Err
 	}
-	if reply != nil {
-		return reply
-	}
-	return nil
+	return uint16(reply.RecordNum), nil
 
 }

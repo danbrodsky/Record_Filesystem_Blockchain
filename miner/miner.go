@@ -178,7 +178,7 @@ func (miner *Miner) Append(op minerlib.Op, reply *AppendReply) error {
 		}
 	}
 
-	//*reply = AppendReply{, nil}
+	*reply = AppendReply{miner.BlockMap.GetRecordPosition(op.SeqNum, op.Fname), nil}
 	return nil
 }
 
