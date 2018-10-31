@@ -43,10 +43,6 @@ func randSeq(n int) string {
 }
 
 
-type LsReply struct{
-    Err   error
-    Files map[string]int
-}
 
 // A Record is the unit of file access (reading/appending) in RFS.
 type Record [512]byte
@@ -56,6 +52,25 @@ type RecordsReply struct{
     Records []Record
 }
 
+type TotalRecReply struct{
+    Err error
+    NumRecords int
+}
+
+type ReadRecReqest struct{
+    Fname string
+    RecordNum uint16
+}
+
+type LsReply struct{
+    Err   error
+    Files []string
+}
+
+type ReadRecReply struct{
+    Err error
+    Rec Record
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // <ERROR DEFINITIONS>
@@ -238,11 +253,7 @@ func (rfs RecordsFileSystem) ListFiles() (fnames []string, err error){
 	op := Op{Op:"ls"}
         err := client.Call("Miner.Ls", op, &rep)
         if(rep.Err == nil){
-	    files := []string{}
-            for k := range rep.Files{
-                files = append(files, k)
-            }
-            return files,nil
+            return rep.Files,nil
         } else {
             return nil, rep.Err
         }
