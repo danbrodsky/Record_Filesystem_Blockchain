@@ -149,6 +149,10 @@ func TestReads(t *testing.T) {
 	fmt.Println("TestReads:", "ls fail")
 	t.Fail()
     }
+    if(bm.GetRecordPosition(op5.SeqNum, op5.Fname) == 1){
+	fmt.Println("TestReads:", "record position should be 1 but is:", bm.GetRecordPosition(op5.SeqNum, op5.Fname))
+        t.Fail()
+    }
     cat := bm.Cat("a.txt")
     if(cat[0] != rec1 ||
        cat[1] != rec1 ||

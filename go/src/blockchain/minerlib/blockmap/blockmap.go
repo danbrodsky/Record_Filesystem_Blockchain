@@ -168,7 +168,6 @@ func (bm *BlockMap) MineAndAddNoOpBlock(minerId string, blockCh chan *Block){
                 MinerId:minerId,
                 Depth: bm.TailBlock.Depth+1}
     StopMining()
-    time.Sleep(1000 * time.Millisecond)
     PrepareMining()
     var minedBlock *Block
     minedBlock = ComputeBlock(block , Configs.PowPerNoOpBlock)
@@ -248,7 +247,7 @@ func (bm *BlockMap) LS() map[string]int{
 func (bm *BlockMap) Cat(fname string) []rfslib.Record{
     bc := bm.GetLongestChain()
     f := []rfslib.Record{}
-     for i := len(bc)-1 ; i >= int(Configs.ConfirmsPerFileAppend) ; i--{
+    for i := len(bc)-1 ; i >= int(Configs.ConfirmsPerFileAppend) ; i--{
         if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
             for _,op := range bc[i].Ops{
 		if(op.Op == "append" && op.Fname == fname){
@@ -390,10 +389,34 @@ func (bm *BlockMap) CheckIfOpExists(seqNum int) bool{
     return false
 }
 
+func (bm *BlockMap) GetRecordPosition(seqNum int, fname string) int{
+    bc := bm.GetLongestChain()
+    numRecord := 0
+    for i := len(bc)-1 ; i >= int(Configs.ConfirmsPerFileAppend) ; i--{
+        if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
+            for _,op := range bc[i].Ops{
+		if(op.SeqNum == seqNum){
+		    return numRecord
+		}
+                if(op.Op == "append" && op.Fname == fname){
+                    numRecord++
+                }
+           }
+        }
+    }
+    return -1
+}
+
 func (bm *BlockMap) CheckIfOpIsValid(operation minerlib.Op) bool{
     bc := bm.GetLongestChain()
     size := 0
-    for i := len(bc)-1 ; i >= int(Configs.ConfirmsPerFileCreate); i--{
+    var reqBlocksForConfirms int
+    if(operation.Op  == "touch"){
+        reqBlocksForConfirms = int(Configs.ConfirmsPerFileCreate)
+    } else{
+	reqBlocksForConfirms = int(Configs.ConfirmsPerFileAppend)
+    }
+    for i := len(bc)-1 ; i >= reqBlocksForConfirms; i--{
         if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
             for _,op := range bc[i].Ops{
                 if(op.Op == "touch" && operation.Op == "touch" && op.Fname == operation.Fname || op.SeqNum == operation.SeqNum){
