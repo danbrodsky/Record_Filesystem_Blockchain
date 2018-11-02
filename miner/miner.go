@@ -53,7 +53,6 @@ type AppendReply struct {
 	Err error
 }
 
-<<<<<<< HEAD
 type RecordsReply struct{
     Err     error
     Records []rfslib.Record
