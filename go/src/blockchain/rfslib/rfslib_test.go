@@ -15,12 +15,39 @@ func TestInitialize(t *testing.T) {
     rfs,err := Initialize(localAddr,remoteMiner)
     if(err != nil){
 	t.Errorf("error")
+	return
      }
-     ls,err := rfs.ListFiles()
+
+    fmt.Println("list files")
+
+    ls,err := rfs.ListFiles()
      if(err != nil){
         t.Errorf("error")
      }
      fmt.Println(ls)
 
+     fmt.Println("creating file")
+     err = rfs.CreateFile("test")
+     if err != nil {
+         fmt.Println(err)
+     }
+     var byteArray [512]byte
+     copy(byteArray[:], "test record")
+     var testRecord Record = byteArray
+    fmt.Println("appending to file")
+
+    recNum, err := rfs.AppendRec("test", &testRecord)
+    if err != nil {
+        fmt.Println(err)
+    }
+    fmt.Println(recNum)
+
+    fmt.Println("list files")
+
+    ls,err = rfs.ListFiles()
+    if(err != nil){
+        t.Errorf("error")
+    }
+    fmt.Println(ls)
 }
 

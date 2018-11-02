@@ -213,11 +213,15 @@ func checkIfConnected(minerAddr string) error{
     client, err := vrpc.RPCDial("tcp", minerAddr, RfsLogger, GovecOptions)
     if err == nil {
         // make this miner known to the other miner
-        var result int
-        err := client.Call("Miner.IsConnected", serial,&result)
-	if(result == 1){
+        var result string
+		err := client.Call("Miner.IsConnected", serial,&result)
+	fmt.Println(result)
+	if result != "disconnected" {
+		minerConnection = client
+		minerId = result
 	    return nil
 	} else {
+		fmt.Println("disconnected rfslib")
 	    return DisconnectedError(minerAddr)
 	}
         fmt.Println(err)
@@ -295,5 +299,15 @@ func (rfs RecordsFileSystem) ReadRec(fname string, recordNum uint16, record *Rec
 // - FileDoesNotExistError
 // - FileMaxLenReachedError
 func (rfs RecordsFileSystem) AppendRec(fname string, record *Record) (recordNum uint16, err error){
-    return 1,nil
+	newOp := Op{"append", -1, fname, *record, minerId, 0}
+	var reply AppendReply
+	err = minerConnection.Call("Miner.Append", newOp, &reply)
+	fmt.Println(reply)
+	if err != nil {
+		return 0, err
+	}
+	if reply.Err != nil {
+		return 0, reply.Err
+	}
+	return uint16(reply.RecordNum), nil
 }

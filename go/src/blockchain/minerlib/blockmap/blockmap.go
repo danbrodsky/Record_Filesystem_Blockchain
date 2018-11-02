@@ -1,12 +1,12 @@
 package blockmap
 
 import (
-    "fmt"
-    "crypto/md5"
-    "encoding/hex"
-    "math/rand"
-    "blockchain/minerlib"
-    "blockchain/rfslib"
+	"blockchain/minerlib"
+	"blockchain/rfslib"
+	"crypto/md5"
+	"encoding/hex"
+	"fmt"
+	"math/rand"
 	"time"
 )
 
@@ -14,6 +14,8 @@ type BlockMap struct {
     TailBlock Block
     GenesisBlock Block
     Map map[string]Block
+	InvalidOps []minerlib.Op
+
 }
 
 type BM interface {
@@ -24,7 +26,7 @@ type BM interface {
 
 var (
     Configs minerlib.Settings
-)
+    )
 
 type Block struct{
     PrevHash string
@@ -69,23 +71,38 @@ func GetHash(block Block) string{
 // and the the previous hash should exist
 // also the hash of the block should end with some number of 0s
 func (bm *BlockMap) Insert(block Block) (err error){
+	fmt.Println("validating block 1")
     err = bm.ValidateOps(block.Ops)
     if(err != nil){
         return err
     }
+	fmt.Println("validating block 2")
 
     if block.Ops != nil && len(block.Ops) != 0 && !BHashEndsWithZeros(block, Configs.PowPerOpBlock) { // TODO set env variable
 	return BlockNotValidError(GetHash(block))
     } else if !BHashEndsWithZeros(block, Configs.PowPerNoOpBlock) {
-	return BlockNotValidError(GetHash(block))
+		fmt.Println("validating block 2.5")
+
+		return BlockNotValidError(GetHash(block))
     }
+	fmt.Println("validating block 3")
+
+	if block.Ops != nil && len(block.Ops) != 0 {
+		fmt.Println("@@@@@@@@@@@@@@@@@@@@@@@ OP BLOCK ADDED @@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+	}
     if _, ok := bm.Map[block.PrevHash]; ok {
-	bm.Map[GetHash(block)] = block
+		bm.Map[GetHash(block)] = block
 		bm.updateLongest(block)
-		fmt.Println("tail:", bm.TailBlock)
+		fmt.Println("prev hash: ", block.PrevHash)
+		fmt.Println("minerID: ", block.MinerId)
+		fmt.Println("height: ", block.Depth)
+		fmt.Println("num ops: ", len(block.Ops))
+		time.Sleep(3 * time.Second)
 	return nil
     } else {
-	return PrevHashDoesNotExistError(block.PrevHash)
+		fmt.Println("validating block 4")
+
+		return PrevHashDoesNotExistError(block.PrevHash)
     }
 }
 
@@ -149,8 +166,9 @@ func (bm *BlockMap) GetMap() (map[string]Block){
 
 func BHashEndsWithZeros(block Block, numZeros uint8) bool{
     hash := GetHash(block)
-    for i:= len(hash) - 1; i > len(hash)-1 -int(numZeros) ; i--{
-        if(hash[i] != '0'){
+    fmt.Println("block hash: ", hash)
+    for i:= len(hash) - 1; i > len(hash) - int(numZeros) ; i--{
+        if hash[i] != '0' {
 	    return false
 	}
     }
@@ -163,7 +181,7 @@ func (bm *BlockMap) SetTailBlock(block Block){
 
 // Mines a no op block and puts it in the block chain
 // returns nil to the channel if invalid block
-func (bm *BlockMap) MineAndAddNoOpBlock(minerId string, blockCh chan *Block){
+func (bm *BlockMap) MineAndAddNoOpBlock(minerId string, blockCh chan Block){
     block := Block{ PrevHash: GetHash(bm.TailBlock),
                 MinerId:minerId,
                 Depth: bm.TailBlock.Depth+1}
@@ -171,16 +189,16 @@ func (bm *BlockMap) MineAndAddNoOpBlock(minerId string, blockCh chan *Block){
     PrepareMining()
     var minedBlock *Block
     minedBlock = ComputeBlock(block , Configs.PowPerNoOpBlock)
-    if(minedBlock != nil){
-        bm.Insert(*minedBlock)
-    }
-    blockCh <-minedBlock
+    if(minedBlock != nil) {
+		bm.Insert(*minedBlock)
+		blockCh <- *minedBlock
+	}
 }
 
 // TODO HANDLE if all ops are invalid
 // Mines an op block and puts it in the block chain
 // returns nil to the channel if invalid block
-func (bm *BlockMap) MineAndAddOpBlock(ops []minerlib.Op, minerId string, blockCh chan *Block){
+func (bm *BlockMap) MineAndAddOpBlock(ops []minerlib.Op, minerId string, blockCh chan Block){
 	block := Block{ PrevHash: GetHash(bm.TailBlock),
 		MinerId:minerId,
 		Depth: bm.TailBlock.Depth+1}
@@ -188,22 +206,23 @@ func (bm *BlockMap) MineAndAddOpBlock(ops []minerlib.Op, minerId string, blockCh
 	time.Sleep(10 * time.Millisecond)
 	PrepareMining()
 	var minedBlock *Block
-	validatedOps := []minerlib.Op{}
+	var validatedOps []minerlib.Op
 	for _,op := range ops{
             if(bm.CheckIfOpIsValid(op)){
 	         validatedOps = append(validatedOps,op)
-	    }
+	    } else { bm.InvalidOps = append(bm.InvalidOps, op)}
 	}
 	if(len(validatedOps) == 0){
-            blockCh <-nil
-	    return
+		fmt.Println("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ ops were invalid @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
+		return
         }
 	block.Ops = validatedOps
 	minedBlock = ComputeBlock(block , Configs.PowPerOpBlock)
-	if(minedBlock != nil){
+	if(minedBlock != nil) {
 		bm.Insert(*minedBlock)
+		fmt.Println("Block mined: ", minedBlock)
+		blockCh <- *minedBlock
 	}
-	blockCh <-minedBlock
 }
 
 
@@ -390,21 +409,21 @@ func (bm *BlockMap) CheckIfOpExists(seqNum int) bool{
 }
 
 func (bm *BlockMap) GetRecordPosition(seqNum int, fname string) int{
-    bc := bm.GetLongestChain()
-    numRecord := 0
-    for i := len(bc)-1 ; i >= int(Configs.ConfirmsPerFileAppend) ; i--{
-        if(bc[i].Ops != nil && len(bc[i].Ops) != 0){
-            for _,op := range bc[i].Ops{
-		if(op.SeqNum == seqNum){
-		    return numRecord
+	bc := bm.GetLongestChain()
+	numRecord := 0
+	for i := len(bc)-1 ; i >= int(Configs.ConfirmsPerFileAppend) ; i--{
+		if bc[i].Ops != nil && len(bc[i].Ops) != 0 {
+			for _,op := range bc[i].Ops{
+				if op.SeqNum == seqNum {
+					return numRecord
+				}
+				if op.Op == "append" && op.Fname == fname {
+					numRecord++
+				}
+			}
 		}
-                if(op.Op == "append" && op.Fname == fname){
-                    numRecord++
-                }
-           }
-        }
-    }
-    return -1
+	}
+	return -1
 }
 
 func (bm *BlockMap) CheckIfOpIsValid(operation minerlib.Op) bool{
@@ -431,7 +450,37 @@ func (bm *BlockMap) CheckIfOpIsValid(operation minerlib.Op) bool{
            }
         }
     }
+    fmt.Println("")
     return true
+}
+
+func (bm *BlockMap) CheckIfOpIsConfirmed(operation minerlib.Op) int {
+	bc := bm.GetLongestChain()
+	for _, invalidOp := range bm.InvalidOps {
+		if operation == invalidOp {
+			return -1
+		}
+	}
+	var reqBlocksForConfirms int
+	if operation.Op  == "touch" {
+		reqBlocksForConfirms = int(Configs.ConfirmsPerFileCreate)
+	} else{
+		reqBlocksForConfirms = int(Configs.ConfirmsPerFileAppend)
+	}
+	for i := len(bc)-1 ; i >= reqBlocksForConfirms; i--{
+		if bc[i].Ops != nil && len(bc[i].Ops) != 0 {
+			for _,op := range bc[i].Ops{
+				if op.Op == "touch" && operation.Op == "touch" && op.Fname == operation.Fname && op.SeqNum == operation.SeqNum {
+					return 1
+				}
+				if op.Op == "append" && op.Fname == operation.Fname && op.SeqNum == operation.SeqNum {
+					return 1
+				}
+			}
+		}
+	}
+	fmt.Println("")
+	return 0
 }
 
 
