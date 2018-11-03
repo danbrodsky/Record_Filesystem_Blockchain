@@ -95,7 +95,7 @@ func (e BadFilenameError) Error() string {
 type FileDoesNotExistError string
 
 func (e FileDoesNotExistError) Error() string {
-	return fmt.Sprintf("RFS: Cannot open file [%s] in D mode as it does not exist locally", string(e))
+	return fmt.Sprintf("RFS: Cannot open file %s in D mode as it does not exist locally", e)
 }
 
 // Contains filename
@@ -245,10 +245,7 @@ func checkIfFileExists(fname string) (bool, error) {
 func (rfs RecordsFileSystem) CreateFile(fname string) (err error){
 	newOp := Op{"touch", -1, fname, Record{}, minerId, 0}
 	var reply error
-	err = minerConnection.Call("Miner.Touch", newOp, &reply)
-	if err != nil {
-		return err
-	}
+	minerConnection.Call("Miner.Touch", newOp, &reply)
 	if reply != nil {
 		return reply
 	}
