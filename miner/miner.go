@@ -78,6 +78,26 @@ type ReadRecReply struct{
     Rec rfslib.Record
 }
 
+type BadFilenameError string
+
+func (e BadFilenameError) Error() string {
+	return fmt.Sprintf("RFS: Filename [%s] has the wrong length", string(e))
+}
+
+// Contains filename
+type FileDoesNotExistError string
+
+func (e FileDoesNotExistError) Error() string {
+	return fmt.Sprintf("RFS: Cannot open file [%s] in D mode as it does not exist locally", string(e))
+}
+
+// Contains filename
+type FileExistsError string
+
+func (e FileExistsError) Error() string {
+	return fmt.Sprintf("RFS: Cannot create file with filename [%s] as it already exists", string(e))
+}
+
 // returns 1 if miner is connected else 0
 func (miner *Miner) IsConnected(clientId string ,res *string) error {
      // fmt.Println("client connection id:", clientId)
@@ -122,7 +142,6 @@ func (miner *Miner) TotalRecs(fname string, reply *TotalRecReply) error{
 }
 
 
-
 func (miner *Miner) ReadRec(req ReadRecReqest, reply *ReadRecReply) error {
      if(len(miner.Connections) == 0){
         reply.Err = rfslib.DisconnectedError(Configs.MinerID)
@@ -150,11 +169,11 @@ func (miner *Miner) Touch(op minerlib.Op, reply *error) error {
 	if err != nil {
 		switch err.(type) {
 		case rfslib.FileDoesNotExistError:
-			*reply = rfslib.FileDoesNotExistError(op.Fname)
+			*reply = rfslib.FileDoesNotExistError(op.SeqNum)
 		case rfslib.FileExistsError:
-			*reply = rfslib.FileExistsError(op.Fname)
+			*reply = rfslib.FileExistsError(op.SeqNum)
 		case rfslib.BadFilenameError:
-			*reply = rfslib.BadFilenameError(op.Fname)
+			*reply = rfslib.BadFilenameError(op.SeqNum)
 		}
 		return nil
 	}
@@ -175,7 +194,7 @@ func (miner *Miner) Touch(op minerlib.Op, reply *error) error {
 				return nil
 			}
 			if miner.BlockMap.CheckIfOpIsConfirmed(op) == -1 {
-				return rfslib.FileExistsError(op.Fname)
+				return rfslib.FileExistsError(op.SeqNum)
 			}
 		}
 	}
@@ -183,18 +202,18 @@ func (miner *Miner) Touch(op minerlib.Op, reply *error) error {
 }
 
 func (miner *Miner) Append(op minerlib.Op, reply *AppendReply) error {
-	op.SeqNum= int(time.Now().UnixNano())
+	op.SeqNum = int(time.Now().UnixNano())
 
 	err := miner.BlockMap.ValidateOp(op)
 	if err != nil {
 		fmt.Println(err)
 		switch err.(type) {
 		case rfslib.FileDoesNotExistError:
-			*reply = AppendReply{-1,rfslib.FileDoesNotExistError(op.Fname)}
+			*reply = AppendReply{-1,rfslib.FileDoesNotExistError(op.SeqNum)}
 		case rfslib.FileExistsError:
-			*reply = AppendReply{-1,rfslib.FileExistsError(op.Fname)}
+			*reply = AppendReply{-1,rfslib.FileExistsError(op.SeqNum)}
 		case rfslib.BadFilenameError:
-			*reply = AppendReply{-1,rfslib.BadFilenameError(op.Fname)}
+			*reply = AppendReply{-1,rfslib.BadFilenameError(op.SeqNum)}
 		}
 		return nil
 	}
@@ -216,7 +235,7 @@ func (miner *Miner) Append(op minerlib.Op, reply *AppendReply) error {
 				return nil
 			}
 			if miner.BlockMap.CheckIfOpIsConfirmed(op) == -1 {
-				*reply = AppendReply{0, rfslib.FileExistsError(op.Fname)}
+				*reply = AppendReply{0, rfslib.FileExistsError(op.SeqNum)}
 				return nil
 			}
 		}
