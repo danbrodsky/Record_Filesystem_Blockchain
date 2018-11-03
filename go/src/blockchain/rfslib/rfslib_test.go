@@ -119,6 +119,5 @@ func TestAppendFileDoesntExist(t *testing.T) {
     }
 }
 func TestAppendFileMaxLen(t *testing.T) {
-
 }
 

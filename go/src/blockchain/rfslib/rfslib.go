@@ -12,8 +12,7 @@ package rfslib
 import (
     "fmt"
     "net"
-	"net/rpc"
-	"time"
+    "time"
     "math/rand"
 
     "github.com/DistributedClocks/GoVector/govec"
@@ -33,8 +32,6 @@ var (
     RfsLogger *govec.GoLog
     serial string
     letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ123456790123456790123456790123456790")
-    minerConnection *rpc.Client
-    minerId string
 )
 
 func randSeq(n int) string {
@@ -46,10 +43,6 @@ func randSeq(n int) string {
 }
 
 
-type LsReply struct{
-    Err   error
-    Files map[string]int
-}
 
 // A Record is the unit of file access (reading/appending) in RFS.
 type Record [512]byte
@@ -59,11 +52,25 @@ type RecordsReply struct{
     Records []Record
 }
 
-type AppendReply struct {
-	RecordNum int
-	Err error
+type TotalRecReply struct{
+    Err error
+    NumRecords int
 }
 
+type ReadRecReqest struct{
+    Fname string
+    RecordNum uint16
+}
+
+type LsReply struct{
+    Err   error
+    Files []string
+}
+
+type ReadRecReply struct{
+    Err error
+    Rec Record
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 // <ERROR DEFINITIONS>
@@ -227,15 +234,6 @@ func CloseConnection(){
 	MinerConn.Close()
 }
 
-func checkIfFileExists(fname string) (bool, error) {
-	var reply *bool
-	err := minerConnection.Call("Miner.CheckForFile", fname, &reply)
-	if err != nil {
-		return false, err
-	}
-	return *reply, err
-}
-
 // Creates a new empty RFS file with name fname.
 //
 // Can return the following errors:
@@ -265,11 +263,7 @@ func (rfs RecordsFileSystem) ListFiles() (fnames []string, err error){
 	op := Op{Op:"ls"}
         err := client.Call("Miner.Ls", op, &rep)
         if(rep.Err == nil){
-	    files := []string{}
-            for k := range rep.Files{
-                files = append(files, k)
-            }
-            return files,nil
+            return rep.Files,nil
         } else {
             return nil, rep.Err
         }
@@ -322,5 +316,4 @@ func (rfs RecordsFileSystem) AppendRec(fname string, record *Record) (recordNum 
 		return 0, reply.Err
 	}
 	return uint16(reply.RecordNum), nil
-
 }
